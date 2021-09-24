@@ -1,9 +1,13 @@
+from torch.cuda.amp import autocast
+from torch.utils.tensorboard import SummaryWriter
 from torchvision import models
 import torch.nn as nn
 import torch
+from datetime import datetime, time
 
 
-def trainModel(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, criterion, optimizer, log=False):
+def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, criterion, optimizer,
+          log=False, device="cuda"):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = "runs/BlurDetection/Training/RenseNet101_SSIM/{}".format(start_time)

@@ -37,6 +37,12 @@ class StudentCustomDataset(Dataset):
         # Get label(class) of the image based on the cropped pandas column
         image_label = self.label_arr[index]
 
+        """
+            1 - CT image
+            2 - MRI  
+            3 - MRI annotated
+        """
+
         return img_transformed, image_label
 
     def __len__(self):

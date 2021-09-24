@@ -3,9 +3,9 @@ import torch
 import torch.optim as optim
 import numpy as np
 from torchvision import transforms
-from teacher_train import train
+from student_train import train
 from Code.Utils.loss import DiceLoss
-from teacher_dataloader import TeacherCustomDataset
+from student_dataloader import StudentCustomDataset
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
 
@@ -52,7 +52,7 @@ def trainModel():
     m, s = np.mean(inpImg, axis=(0, 1)), np.std(inpImg, axis=(0, 1))
     transform = getTransform(m,s)
     num_epochs = 1000
-    dataloaders = TeacherCustomDataset(dataset_path, csv_file, transform)
+    dataloaders = StudentCustomDataset(dataset_path, csv_file, transform)
     train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, criterion, optimizer, log=False)
 
 

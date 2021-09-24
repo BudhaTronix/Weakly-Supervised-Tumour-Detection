@@ -1,25 +1,29 @@
-import os
-import sys
-from pathlib import Path
-
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import torchio as tio
-from torch.utils.data import SubsetRandomSampler
-from torchvision import models
+import torch.nn.functional as f
+import copy
+import time
+from torch.cuda.amp import autocast, GradScaler
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from datetime import datetime
 
-from Train import trainModel
 
-def trainModel(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, criterion, optimizer, log=False):
+def transformImage(img, TransformVal):
+    img = f.interpolate(img, TransformVal)
+    return img
+
+
+def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, criterion, optimizer,
+          log=False, device="cuda"):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = "runs/BlurDetection/Training/RenseNet101_SSIM/{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
+    scaler = GradScaler()
     best_model_wts = ""
     best_acc = 0.0
+    precision = 2
     best_val_loss = 99999
     since = time.time()
     for epoch in range(num_epochs):
@@ -38,17 +42,19 @@ def trainModel(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, 
             running_corrects = 0
             # Iterate over data.
             for batch in tqdm(dataloaders[phase]):
-                image_batch, labels_batch = batch
-                image_batch = image_batch.unsqueeze(1)
+                ct_img, mri_img, labels_batch = batch
+                ct_img = ct_img.unsqueeze(1)
+                tranformVal = ""  # Make changes here - Get the transformation value
+                labels_batch = transformImage(labels_batch, tranformVal)
 
                 optimizer.zero_grad()
                 # forward
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
-                        image_batch = (image_batch - image_batch.min()) / \
-                                      (image_batch.max() - image_batch.min())  # Min Max normalization
+                        ct_img = (ct_img - ct_img.min()) / \
+                                 (ct_img.max() - ct_img.min())  # Min Max normalization
                         # image_batch = image_batch / np.linalg.norm(image_batch)  # Gaussian Normalization
-                        outputs = model(image_batch.float().to(device))
+                        outputs = model(ct_img.float().to(device))
                         loss = criterion(outputs.squeeze(1).float(), labels_batch.float().to(device))
 
                     # backward + optimize only if in training phase
