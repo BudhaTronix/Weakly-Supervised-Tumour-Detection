@@ -59,7 +59,7 @@ class TeacherPipeline:
         transform_val = (1, 256, 256)
         transform = tio.CropOrPad(transform_val)
         num_epochs = 1000
-        dataset_path = "/project/cmandal/liver_seg/chaos/Dataset/"
+        dataset_path = "/project/cmandal/liver_seg/datasets/chaos/"
         checkCSV(dataset_Path=dataset_path, csv_FileName=csv_file, overwrite=True)
         dataset = TeacherCustomDataset(dataset_path, csv_file, transform)
 
