@@ -54,6 +54,3 @@ def trainModel():
     num_epochs = 1000
     dataloaders = TeacherCustomDataset(dataset_path, csv_file, transform)
     train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, criterion, optimizer, log=False)
-
-
-
