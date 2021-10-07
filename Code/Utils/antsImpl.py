@@ -34,6 +34,7 @@ def applyTransformation(img1, transformation):
     return mywarpedimage
 
 
+"""
 dataset_path = "/project/cmandal/liver_seg/datasets/chaos/"
 imgPath = Path(str(dataset_path) + "/images")
 gtPath = Path(str(dataset_path) + "/gt")
@@ -41,3 +42,6 @@ for img_file_name in sorted(imgPath.glob("*")):
     for gt_file_name in sorted(gtPath.glob("*")):
         if img_file_name.name.replace(".dcm", "") == gt_file_name.name.replace(".png", ""):
             print(img_file_name.name, gt_file_name.name)
+"""
+
+getWarp("", "")
