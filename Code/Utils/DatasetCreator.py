@@ -14,7 +14,7 @@ print("Temp directory after change:", tempfile.gettempdir())
 
 
 def createGT(path, outPath, subject):
-    str_to_search = path + "*.png"
+    str_to_search = path + str(subject) + "*.png"
     file_names = glob.glob(str_to_search)
     reader = sitk.ImageSeriesReader()
     reader.SetFileNames(file_names)
