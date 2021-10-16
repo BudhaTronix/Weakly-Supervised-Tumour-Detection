@@ -48,8 +48,6 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                 # forward
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
-                        image_batch = (image_batch - image_batch.min()) / \
-                                      (image_batch.max() - image_batch.min())  # Min Max normalization
                         # image_batch = image_batch / np.linalg.norm(image_batch)  # Gaussian Normalization
                         outputs = model(image_batch.to(device))
                         # outputs = (outputs - outputs.min())/(outputs.max() - outputs.min())  # Min Max normalization

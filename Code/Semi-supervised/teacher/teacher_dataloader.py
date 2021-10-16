@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import torchio as tio
 import pydicom
 import torch
 from PIL import Image
@@ -30,26 +31,25 @@ class TeacherCustomDataset(Dataset):
         self.data_len = len(self.data_info.index)
 
     def __getitem__(self, index):
-        # Get image name from the pandas df
-        single_image_name = self.image_arr[index]
         # Open image
-        """img = tio.ScalarImage(self.dataset_path+single_image_name)[tio.DATA].permute(0, 3, 1, 2)"""
-        ds = pydicom.dcmread(self.dataset_path + "images/" + single_image_name).pixel_array  # .unsqueeze(0)
-        img_transformed = torch.Tensor(ds.astype(np.float))
-        img_transformed = img_transformed.unsqueeze(0).unsqueeze(0)
+        img = tio.ScalarImage(self.dataset_path+self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
+        # Normalize the data
+        img = (img - img.min()) / (img.max() - img.min())
+
         # Transform image
-        img_transformed = self.transform(img_transformed).squeeze(0)
+        # img_transformed = self.transform(img_transformed).squeeze(0)
 
         # Get label(class) of the image based on the cropped pandas column
-        im_frame = Image.open(self.dataset_path + "gt/" + self.label_arr[index])
-        np_frame = np.array(im_frame)
+        img = tio.ScalarImage(self.dataset_path + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
+        np_frame = np.array(img)
         np_frame[np_frame < 240] = 0
         np_frame[np_frame >= 240] = 1
-        lbl_transformed = torch.Tensor(np_frame.astype(np.float))
-        lbl_transformed = lbl_transformed.unsqueeze(0).unsqueeze(0)
-        lbl_transformed = self.transform(lbl_transformed).squeeze(0)
 
-        return img_transformed, lbl_transformed
+        lbl_transformed = torch.Tensor(np_frame.astype(np.float))
+        # lbl_transformed = lbl_transformed.unsqueeze(0).unsqueeze(0)
+        # lbl_transformed = self.transform(lbl_transformed).squeeze(0)
+
+        return img, lbl_transformed
 
     def __len__(self):
         return self.data_len

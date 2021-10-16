@@ -5,7 +5,7 @@ from pathlib import Path
 def getWarp(img1, img2):
     fi = ants.image_read(ants.get_ants_data('r16'))  # Sample Input
     mi = ants.image_read(ants.get_ants_data('r64'))  # Sample Input
-    mygr = ants.create_warped_grid(mi)
+    # mygr = ants.create_warped_grid(mi)
     mytx = ants.registration(fixed=fi, moving=mi, type_of_transform='SyN')
     mywarpedgrid = ants.create_warped_grid(mi, grid_directions=(False, True),
                                            transform=mytx['fwdtransforms'], fixed_reference_image=fi)
