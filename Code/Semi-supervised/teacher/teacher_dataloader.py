@@ -3,6 +3,7 @@ import pandas as pd
 import torchio as tio
 import pydicom
 import torch
+torch.set_num_threads(1)
 from PIL import Image
 from torch.utils.data.dataset import Dataset
 
@@ -32,24 +33,24 @@ class TeacherCustomDataset(Dataset):
 
     def __getitem__(self, index):
         # Open image
-        img = tio.ScalarImage(self.dataset_path+self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
+        img = tio.ScalarImage(self.dataset_path + "images/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
         # Normalize the data
         img = (img - img.min()) / (img.max() - img.min())
 
         # Transform image
-        # img_transformed = self.transform(img_transformed).squeeze(0)
+        img_transformed = self.transform(img).squeeze(0)
 
         # Get label(class) of the image based on the cropped pandas column
-        img = tio.ScalarImage(self.dataset_path + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
-        np_frame = np.array(img)
+        img_lbl = tio.ScalarImage(self.dataset_path + "gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
+        np_frame = np.array(img_lbl)
         np_frame[np_frame < 240] = 0
         np_frame[np_frame >= 240] = 1
 
-        lbl_transformed = torch.Tensor(np_frame.astype(np.float))
+        img_lbl = torch.Tensor(np_frame.astype(np.float))
         # lbl_transformed = lbl_transformed.unsqueeze(0).unsqueeze(0)
-        # lbl_transformed = self.transform(lbl_transformed).squeeze(0)
+        lbl_transformed = self.transform(img_lbl).squeeze(0)
 
-        return img, lbl_transformed
+        return img_transformed, lbl_transformed
 
     def __len__(self):
         return self.data_len

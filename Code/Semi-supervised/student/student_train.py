@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 
 import torch
+torch.set_num_threads(1)
 from skimage.filters import threshold_otsu
 from sklearn.metrics import f1_score
 from torch.cuda.amp import autocast, GradScaler
@@ -10,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from Code.Utils.loss import DiceLoss
-
+from Code.Utils.antsImpl import getWarp_antspy, applyTransformation
 scaler = GradScaler()
 
 
@@ -18,7 +19,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
           log=False, device="cuda"):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
-        TBLOGDIR = "runs/Training/Unet/{}".format(start_time)
+        TBLOGDIR = "runs/Training/Student_Unet3D/{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
     best_model_wts = ""
     best_acc = 0.0
@@ -42,24 +43,18 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
             running_corrects = 0
             # Iterate over data.
             for batch in tqdm(dataloaders[phase]):
-                image_batch, labels_batch, warp_batch = batch
+                mri_batch, ct_batch, labels_batch = batch
 
                 optimizer.zero_grad()
+
+                getWarpVal = getWarp_antspy(mri_batch.detach().cpu(),ct_batch.detach().cpu())
                 # forward
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
-                        image_batch = (image_batch - image_batch.min()) / \
-                                      (image_batch.max() - image_batch.min())  # Min Max normalization
-                        # image_batch = image_batch / np.linalg.norm(image_batch)  # Gaussian Normalization
-                        outputs = model(image_batch.to(device))
-                        # outputs = (outputs - outputs.min())/(outputs.max() - outputs.min())  # Min Max normalization
-                        """
-                            Need to modify the output - warp the image and then calculate the loss
-                            outputs = batch_warp * outputs
-                            
-                            
-                        """
-                        loss = criterion(outputs, labels_batch.to(device))
+                        output_mri = model(mri_batch.to(device))
+                        output_ct = model(ct_batch.to(device))
+                        pseudo_lbl = applyTransformation(output_mri.detach().cpu(),output_ct.detach().cpu(),getWarpVal)
+                        loss = criterion(output_ct, pseudo_lbl.to(device))
 
                     # backward + optimize only if in training phase
                     if phase == 0:

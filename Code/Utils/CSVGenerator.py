@@ -24,7 +24,5 @@ def GenerateCSV(dataset_Path, csv_FileName):
         gtPath = Path(str(dataset_Path) + "/gt")
         for img_file_name in tqdm(sorted(imgPath.glob("*"))):
             for gt_file_name in sorted(gtPath.glob("*")):
-                if img_file_name.name.replace(".dcm", "") == gt_file_name.name.replace(".png", ""):
+                if img_file_name.name == gt_file_name.name:
                     writer.writerow([img_file_name.name, gt_file_name.name])
-
-

@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-import pydicom
+import torchio as tio
 import torch
-from PIL import Image
+torch.set_num_threads(1)
 from torch.utils.data.dataset import Dataset
 
 
@@ -30,25 +30,30 @@ class StudentCustomDataset(Dataset):
         self.data_len = len(self.data_info.index)
 
     def __getitem__(self, index):
-        # Get image name from the pandas df
-        single_image_name = self.image_arr[index]
         # Open image
-        ds = pydicom.dcmread(self.dataset_path + "images/" + single_image_name).pixel_array
-        img_transformed = torch.Tensor(ds.astype(np.float))
-        img_transformed = img_transformed.unsqueeze(0).unsqueeze(0)
+        img = tio.ScalarImage(self.dataset_path + "images/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
+        # Normalize the data
+        img = (img - img.min()) / (img.max() - img.min())
         # Transform image
-        img_transformed = self.transform(img_transformed).squeeze(0)
+        mri_transformed = self.transform(img).squeeze(0)
+
+        # Open image
+        img = tio.ScalarImage(self.dataset_path + "ct/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
+        # Normalize the data
+        img = (img - img.min()) / (img.max() - img.min())
+        # Transform image
+        ct_transformed = self.transform(img).squeeze(0)
+
         # Get label(class) of the image based on the cropped pandas column
-        im_frame = Image.open(self.dataset_path + "gt/" + self.label_arr[index])
-        np_frame = np.array(im_frame)
+        img_lbl = tio.ScalarImage(self.dataset_path + "gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
+        np_frame = np.array(img_lbl)
         np_frame[np_frame < 240] = 0
         np_frame[np_frame >= 240] = 1
-        lbl_transformed = torch.Tensor(np_frame.astype(np.float))
-        lbl_transformed = lbl_transformed.unsqueeze(0).unsqueeze(0)
-        lbl_transformed = self.transform(lbl_transformed).squeeze(0)
-        warp_factor = ""
 
-        return img_transformed, lbl_transformed, warp_factor
+        img_lbl = torch.Tensor(np_frame.astype(np.float))
+        lbl_transformed = self.transform(img_lbl).squeeze(0)
+
+        return mri_transformed,ct_transformed, lbl_transformed
 
     def __len__(self):
         return self.data_len

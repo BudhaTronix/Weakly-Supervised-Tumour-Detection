@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 
 import torch
+torch.set_num_threads(1)
 from skimage.filters import threshold_otsu
 from sklearn.metrics import f1_score
 from torch.cuda.amp import autocast, GradScaler
@@ -18,7 +19,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
           log=False, device="cuda"):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
-        TBLOGDIR = "runs/Training/Unet/{}".format(start_time)
+        TBLOGDIR = "runs/Training/Unet3D/{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
     best_model_wts = ""
     best_acc = 0.0

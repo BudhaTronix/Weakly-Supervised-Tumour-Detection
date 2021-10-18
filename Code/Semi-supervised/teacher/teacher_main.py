@@ -2,6 +2,9 @@ import os
 import sys
 
 import torch
+
+torch.set_num_threads(1)
+
 import torch.optim as optim
 import torchio as tio
 from torchvision import transforms
@@ -11,7 +14,7 @@ from teacher_train import train
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 try:
     from Code.Utils.CSVGenerator import checkCSV
 except ImportError:
@@ -23,18 +26,18 @@ class TeacherPipeline:
 
     def __init__(self):
         self.dataset_Path = ""
-        self.batch_size = 32
+        self.batch_size = 1
 
     @staticmethod
     def defineModel():
         # Define Model
         model = torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
-                               in_channels=1, out_channels=1, init_features=32, pretrained=False)
+                               in_channels=30, out_channels=30, init_features=32, pretrained=False)
         return model
 
     @staticmethod
     def defineOptimizer(model):
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        optimizer = optim.Adam(model.parameters(), lr=0.01)
         return optimizer
 
     @staticmethod
@@ -56,10 +59,10 @@ class TeacherPipeline:
         modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/UNet.pth"
         modelPath_bestweight = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/UNet_bw.pth"
         csv_file = "dataset.csv"
-        transform_val = (1, 256, 256)
+        transform_val = (30, 256, 256)
         transform = tio.CropOrPad(transform_val)
         num_epochs = 1000
-        dataset_path = "/project/cmandal/liver_seg/datasets/chaos/"
+        dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
         checkCSV(dataset_Path=dataset_path, csv_FileName=csv_file, overwrite=True)
         dataset = TeacherCustomDataset(dataset_path, csv_file, transform)
 

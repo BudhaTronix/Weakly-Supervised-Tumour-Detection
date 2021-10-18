@@ -28,17 +28,17 @@ f = ants.image_read(r'/project/tawde/DL_Liver/NewDataforReg/CTDIcom/1/Nifty/CT1n
 # print("test")
 # f = ants.dicom_read('CTTest')
 print("test")
-mytx = ants.registration(fixed=f, moving=m, type_of_transform='SyN')
+mytx = ants.registration(fixed=f, moving=m, type_of_transform='Affine')
 print(mytx)
 warped_moving = mytx['warpedmovout']
-f.plot(overlay=warped_moving,
-       title='After Registration')
+"""f.plot(overlay=warped_moving,
+       title='After Registration')"""
 mywarpedimage = ants.apply_transforms(fixed=f, moving=m,
                                       transformlist=mytx['fwdtransforms'])
-moving_filename = "output_1"
-# ants.image_write(warped_moving, '/project/tawde/DL_Liver/NewDataforReg/CTDIcom/1/Nifty/Output/' + moving_filename + ".nii.gz",
-# ri=False)
+moving_filename = "output_affine"
+ants.image_write(warped_moving, '/project/tawde/DL_Liver/NewDataforReg/CTDIcom/1/Nifty/Output/' + moving_filename + ".nii.gz",
+ri=False)
 
-mywarpedimage.plot()
+# mywarpedimage.plot()
 
 # Intensity normalization
