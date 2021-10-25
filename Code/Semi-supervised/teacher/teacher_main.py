@@ -14,7 +14,9 @@ from teacher_train import train
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+
+from Model.unet3d import U_Net
 try:
     from Code.Utils.CSVGenerator import checkCSV
 except ImportError:
@@ -31,13 +33,15 @@ class TeacherPipeline:
     @staticmethod
     def defineModel():
         # Define Model
-        model = torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
-                               in_channels=30, out_channels=30, init_features=32, pretrained=False)
+        #model = torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
+                               #in_channels=30, out_channels=130, init_features=32, pretrained=False)
+
+        model = U_Net()
         return model
 
     @staticmethod
     def defineOptimizer(model):
-        optimizer = optim.Adam(model.parameters(), lr=0.01)
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
         return optimizer
 
     @staticmethod
@@ -56,10 +60,10 @@ class TeacherPipeline:
     def trainModel(self):
         model = self.defineModel()
         optimizer = self.defineOptimizer(model)
-        modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/UNet.pth"
-        modelPath_bestweight = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/UNet_bw.pth"
-        csv_file = "dataset.csv"
-        transform_val = (30, 256, 256)
+        modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/UNet_Teacher.pth"
+        modelPath_bestweight = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/UNet_bw_Teacher.pth"
+        csv_file = "dataset_teacher.csv"
+        transform_val = (32, 256, 256)
         transform = tio.CropOrPad(transform_val)
         num_epochs = 1000
         dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"

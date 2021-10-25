@@ -2,12 +2,14 @@ import numpy as np
 import pandas as pd
 import torchio as tio
 import torch
+import os
 torch.set_num_threads(1)
 from torch.utils.data.dataset import Dataset
+from Code.Utils.antsImpl import getWarp_antspy
 
-
+#os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 class StudentCustomDataset(Dataset):
-    def __init__(self, dataset_path, csv_file, transform):
+    def __init__(self, dataset_path, csv_file, transform, t_ct):
         """
         Args:
             csv_file (string): csv file name
@@ -20,6 +22,7 @@ class StudentCustomDataset(Dataset):
         self.csv_file = csv_file
         # Transforms
         self.transform = transform
+        self.t_ct = t_ct
         # Read the csv file
         self.data_info = pd.read_csv(self.dataset_path + "/" + self.csv_file, header=None)
         # First column contains the image paths
@@ -43,6 +46,7 @@ class StudentCustomDataset(Dataset):
         img = (img - img.min()) / (img.max() - img.min())
         # Transform image
         ct_transformed = self.transform(img).squeeze(0)
+        ct_actualSize = self.t_ct(img).squeeze(0)
 
         # Get label(class) of the image based on the cropped pandas column
         img_lbl = tio.ScalarImage(self.dataset_path + "gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
@@ -53,7 +57,10 @@ class StudentCustomDataset(Dataset):
         img_lbl = torch.Tensor(np_frame.astype(np.float))
         lbl_transformed = self.transform(img_lbl).squeeze(0)
 
-        return mri_transformed,ct_transformed, lbl_transformed
+        """warpVal = getWarp_antspy(mri_transformed.squeeze().numpy(),
+                                 ct_transformed.squeeze().numpy())"""
+
+        return mri_transformed, ct_transformed, lbl_transformed, ct_actualSize
 
     def __len__(self):
         return self.data_len

@@ -1,8 +1,11 @@
 import copy
 import time
+import os
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 import torch
+
 torch.set_num_threads(1)
 from skimage.filters import threshold_otsu
 from sklearn.metrics import f1_score
@@ -12,14 +15,32 @@ from tqdm import tqdm
 
 from Code.Utils.loss import DiceLoss
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "5"
 scaler = GradScaler()
+
+
+def saveImage(img, lbl, op):
+    # create grid of images
+    figure = plt.figure(figsize=(10, 10))
+    plt.subplot(131, title="MRI")
+    plt.grid(False)
+    plt.imshow(img.permute(1, 2, 0), cmap="gray")
+    plt.subplot(132, title="GT")
+    plt.grid(False)
+    plt.imshow(lbl.permute(1, 2, 0), cmap="gray")
+    plt.subplot(133, title="OP")
+    plt.grid(False)
+    plt.imshow(op.permute(1, 2, 0).to(torch.float), cmap="gray")
+
+    return figure
 
 
 def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer,
           log=False, device="cuda"):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
-        TBLOGDIR = "runs/Training/Unet3D/{}".format(start_time)
+        TBLOGDIR = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/student/runs/Training/Teacher_Unet3D/{}".format(
+            start_time)
         writer = SummaryWriter(TBLOGDIR)
     best_model_wts = ""
     best_acc = 0.0
@@ -27,6 +48,8 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
     since = time.time()
     model.to(device)
     criterion = DiceLoss()
+    store_idx = int(len(dataloaders[0])/2)
+    # criterion = torch.nn.
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
         print('-' * 10)
@@ -41,6 +64,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
 
             running_loss = 0.0
             running_corrects = 0
+            idx = 0
             # Iterate over data.
             for batch in tqdm(dataloaders[phase]):
                 image_batch, labels_batch = batch
@@ -49,10 +73,8 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                 # forward
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
-                        # image_batch = image_batch / np.linalg.norm(image_batch)  # Gaussian Normalization
-                        outputs = model(image_batch.to(device))
-                        # outputs = (outputs - outputs.min())/(outputs.max() - outputs.min())  # Min Max normalization
-                        loss = criterion(outputs, labels_batch.to(device))
+                        outputs = model(image_batch.unsqueeze(1).to(device))
+                        loss, acc = criterion(outputs[0].squeeze(1), labels_batch.to(device))
 
                     # backward + optimize only if in training phase
                     if phase == 0:
@@ -60,11 +82,23 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                         scaler.step(optimizer)
                         scaler.update()
 
+                        if epoch % 5 == 0 and idx == store_idx:
+                            print("Storing images", idx, epoch)
+                            img = image_batch[:1, 14:15, :, :].squeeze(0).detach().cpu()
+                            lbl = labels_batch[:1, 14:15, :, :].squeeze(0).detach().cpu()
+                            op = outputs[0][:1, :1, 14:15, :, :].squeeze(0).squeeze(0).detach().cpu()
+
+                            fig = saveImage(img, lbl, op)
+                            text = "Images"
+                            writer.add_figure(text, fig, epoch)
+
                     # statistics
                     running_loss += loss.item()
-                    outputs = outputs.cpu().detach().numpy() >= threshold_otsu(outputs.cpu().detach().numpy())
+                    """outputs = outputs[0].cpu().detach().numpy() >= threshold_otsu(outputs[0].cpu().detach().numpy())
                     running_corrects += f1_score(outputs.astype(int).flatten(), labels_batch.numpy().flatten(),
-                                                 average='macro')
+                                                 average='macro')"""
+                    running_corrects += acc.item()
+                    idx += 1
 
             epoch_loss = running_loss / len(dataloaders[phase])
             epoch_acc = running_corrects / len(dataloaders[phase])

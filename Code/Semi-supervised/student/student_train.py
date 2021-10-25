@@ -1,8 +1,10 @@
 import copy
 import time
 from datetime import datetime
-
+import os
 import torch
+import numpy as np
+import matplotlib.pyplot as plt
 torch.set_num_threads(1)
 from skimage.filters import threshold_otsu
 from sklearn.metrics import f1_score
@@ -12,21 +14,56 @@ from tqdm import tqdm
 
 from Code.Utils.loss import DiceLoss
 from Code.Utils.antsImpl import getWarp_antspy, applyTransformation
+
 scaler = GradScaler()
+#os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+device_1 = torch.device("cuda:0")
+def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
+    # create grid of images
+    figure = plt.figure(figsize=(10, 10))
+
+    plt.subplot(231, title="MRI")
+    plt.grid(False)
+    plt.imshow(mri.permute(1, 2, 0), cmap="gray")
+
+    plt.subplot(232, title="MRI OP")
+    plt.grid(False)
+    plt.imshow(mri_op.permute(1, 2, 0).to(torch.float), cmap="gray")
+
+    plt.subplot(233, title="MRI LBL")
+    plt.grid(False)
+    plt.imshow(mri_lbl.permute(1, 2, 0).to(torch.float), cmap="gray")
+
+    plt.subplot(234, title="CT")
+    plt.grid(False)
+    plt.imshow(ct.permute(1, 2, 0), cmap="gray")
+
+    plt.subplot(235, title="CT OP")
+    plt.grid(False)
+    plt.imshow(ct_op.permute(1, 2, 0).to(torch.float), cmap="gray")
+
+    plt.subplot(236, title="CT LBL")
+    plt.grid(False)
+    plt.imshow(torch.tensor(op).permute(1, 2, 0), cmap="gray")
+
+    return figure
+
 
 
 def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer,
-          log=False, device="cuda"):
+          log=False, device="cuda:0", model_Path_trained=""):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = "runs/Training/Student_Unet3D/{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
+    model = torch.load(model_Path_trained)
     best_model_wts = ""
     best_acc = 0.0
     best_val_loss = 99999
     since = time.time()
-    model.to(device)
+    # model.to(device)
     criterion = DiceLoss()
+    store_idx = int(len(dataloaders[0])/2)
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
         print('-' * 10)
@@ -42,19 +79,22 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
             running_loss = 0.0
             running_corrects = 0
             # Iterate over data.
+            idx = 0
             for batch in tqdm(dataloaders[phase]):
-                mri_batch, ct_batch, labels_batch = batch
-
+                mri_batch, _, labels_batch, ct_actual = batch
+                #getWarpVal = getWarp_antspy(mri_batch.detach().cpu().squeeze().numpy(),
+                #                            ct_actual.detach().cpu().squeeze().numpy())
                 optimizer.zero_grad()
-
-                getWarpVal = getWarp_antspy(mri_batch.detach().cpu(),ct_batch.detach().cpu())
                 # forward
+                output_mri = 0
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
-                        output_mri = model(mri_batch.to(device))
-                        output_ct = model(ct_batch.to(device))
-                        pseudo_lbl = applyTransformation(output_mri.detach().cpu(),output_ct.detach().cpu(),getWarpVal)
-                        loss = criterion(output_ct, pseudo_lbl.to(device))
+                        # output_mri = model(mri_batch.unsqueeze(1).to(device))[0].detach().cpu()
+                        output_ct = model(ct_actual.unsqueeze(1))[0].detach().cpu()
+                        torch.cuda.empty_cache()
+                    pseudo_lbl = applyTransformation(np.float32(output_mri.squeeze().numpy()),
+                                                     np.float32(output_ct.squeeze().numpy()), getWarpVal)
+                    loss, acc = criterion(output_ct[0].squeeze(0).squeeze(0).to(device), torch.from_numpy(pseudo_lbl.numpy()).to(device))
 
                     # backward + optimize only if in training phase
                     if phase == 0:
@@ -62,11 +102,28 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                         scaler.step(optimizer)
                         scaler.update()
 
+
+                        if epoch % 5 == 0 and idx == store_idx:
+                            print("Storing images", idx, epoch)
+                            mri = mri_batch.squeeze()[8:9,:,:]
+                            ct = ct_actual.squeeze()[8:9,:,:]
+                            mri_op = output_mri[0].squeeze()[8:9,:,:]
+                            ct_op = output_ct[0].squeeze()[8:9,:,:].detach().cpu()
+                            mri_lbl = labels_batch.squeeze()[8:9,:,:].detach().cpu()
+                            op = pseudo_lbl[8:9,:,:]
+
+                            fig = saveImage(mri, mri_op, mri_lbl, ct, ct_op, op)
+                            text = "Images"
+                            writer.add_figure(text, fig, epoch)
+
+
                     # statistics
                     running_loss += loss.item()
-                    outputs = outputs.cpu().detach().numpy() >= threshold_otsu(outputs.cpu().detach().numpy())
-                    running_corrects += f1_score(outputs.astype(int).flatten(), labels_batch.numpy().flatten(),
-                                                 average='macro')
+                    running_corrects += acc.item()
+                    # outputs = outputs.cpu().detach().numpy() >= threshold_otsu(outputs.cpu().detach().numpy())
+                    # running_corrects += f1_score(outputs.astype(int).flatten(), labels_batch.numpy().flatten(),
+                    # average='macro')
+                    idx += 1
 
             epoch_loss = running_loss / len(dataloaders[phase])
             epoch_acc = running_corrects / len(dataloaders[phase])
@@ -81,7 +138,8 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                     writer.add_scalar("Loss/Validation", epoch_loss, epoch)
                     writer.add_scalar("Acc/Validation", epoch_acc, epoch)
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(mode, epoch_loss, epoch_acc))
+            # print('{} Loss: {:.4f} Acc: {:.4f}'.format(mode, epoch_loss, epoch_acc))
+            print('{} Loss: {:.4f}'.format(mode, epoch_loss))
 
             # deep copy the model
             if phase == 1 and (epoch_acc > best_acc or epoch_loss < best_val_loss):
