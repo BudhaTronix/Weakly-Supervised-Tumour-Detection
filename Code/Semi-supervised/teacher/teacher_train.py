@@ -14,8 +14,6 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from Code.Utils.loss import DiceLoss
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "5"
 scaler = GradScaler()
 
 
@@ -36,7 +34,7 @@ def saveImage(img, lbl, op):
 
 
 def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer,
-          log=False, device="cuda"):
+          log=False, device="cuda:3"):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/student/runs/Training/Teacher_Unet3D/{}".format(
@@ -46,7 +44,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
     best_acc = 0.0
     best_val_loss = 99999
     since = time.time()
-    model.to(device)
+    # model.to(device)
     criterion = DiceLoss()
     store_idx = int(len(dataloaders[0])/2)
     # criterion = torch.nn.
@@ -73,7 +71,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                 # forward
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
-                        outputs = model(image_batch.unsqueeze(1).to(device))
+                        outputs = model(image_batch.unsqueeze(1))
                         loss, acc = criterion(outputs[0].squeeze(1), labels_batch.to(device))
 
                     # backward + optimize only if in training phase

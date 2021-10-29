@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch
 
+
 class DiceLoss(nn.Module):
 
     def __init__(self):
@@ -15,4 +16,4 @@ class DiceLoss(nn.Module):
         union = torch.sum(y_true_f + y_pred_f)
         dice_score = (2. * intersection + self.smooth) / (union + self.smooth)
         dice_loss = 1 - dice_score
-        return dice_loss,    dice_score
+        return dice_loss, dice_score

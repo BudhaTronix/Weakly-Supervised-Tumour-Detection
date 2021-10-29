@@ -3,6 +3,7 @@ import sys
 
 import torch
 import torchio as tio
+
 torch.set_num_threads(1)
 
 import torch.optim as optim
@@ -15,10 +16,11 @@ from Code.Utils.antsImpl import getWarp_antspy, applyTransformation
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
-#os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 
 from Model.unet3d import U_Net
+
 try:
     from Code.Utils.CSVGenerator import checkCSV_Student
 except ImportError:
@@ -38,6 +40,7 @@ class TeacherPipeline:
         """model = torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
                                in_channels=30, out_channels=30, init_features=32, pretrained=False)"""
         model = U_Net()
+        # model = torch.nn.DataParallel(model, device_ids=[0, 1, 2])
         return model
 
     @staticmethod
@@ -76,7 +79,6 @@ class TeacherPipeline:
 
             print(getWarpVal)
 
-
     def trainModel(self):
         model = self.defineModel()
         optimizer = self.defineOptimizer(model)
@@ -84,9 +86,9 @@ class TeacherPipeline:
         modelPath_bestweight = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/UNet_bw_Student.pth"
         model_Path_trained = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/UNet_Teacher.pth"
         csv_file = "dataset.csv"
-        transform_val = (16, 256, 256)
+        transform_val = (32, 256, 256)
         transform = tio.CropOrPad(transform_val)
-        t_ct = tio.CropOrPad((16, 512, 512))
+        t_ct = tio.CropOrPad((32, 512, 512))
         num_epochs = 1000
         dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
         checkCSV_Student(dataset_Path=dataset_path, csv_FileName=csv_file, overwrite=True)

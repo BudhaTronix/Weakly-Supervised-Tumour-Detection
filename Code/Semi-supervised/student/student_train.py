@@ -1,10 +1,12 @@
 import copy
+import gc
 import time
 from datetime import datetime
 import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+
 torch.set_num_threads(1)
 from skimage.filters import threshold_otsu
 from sklearn.metrics import f1_score
@@ -16,8 +18,9 @@ from Code.Utils.loss import DiceLoss
 from Code.Utils.antsImpl import getWarp_antspy, applyTransformation
 
 scaler = GradScaler()
-#os.environ["CUDA_VISIBLE_DEVICES"] = "4"
-device_1 = torch.device("cuda:0")
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+
 def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
     # create grid of images
     figure = plt.figure(figsize=(10, 10))
@@ -49,21 +52,22 @@ def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
     return figure
 
 
-
 def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer,
           log=False, device="cuda:0", model_Path_trained=""):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = "runs/Training/Student_Unet3D/{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
-    model = torch.load(model_Path_trained)
+    model_tchr = torch.load(model_Path_trained)
+    model_tchr.eval()
+    #model_tchr.to(device)
     best_model_wts = ""
     best_acc = 0.0
     best_val_loss = 99999
     since = time.time()
     # model.to(device)
     criterion = DiceLoss()
-    store_idx = int(len(dataloaders[0])/2)
+    store_idx = int(len(dataloaders[0]) / 2)
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
         print('-' * 10)
@@ -81,20 +85,25 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
             # Iterate over data.
             idx = 0
             for batch in tqdm(dataloaders[phase]):
+                gc.collect()
+                torch.cuda.empty_cache()
                 mri_batch, _, labels_batch, ct_actual = batch
-                #getWarpVal = getWarp_antspy(mri_batch.detach().cpu().squeeze().numpy(),
-                #                            ct_actual.detach().cpu().squeeze().numpy())
+                getWarpVal = getWarp_antspy(mri_batch.squeeze().numpy(),
+                                            ct_actual.squeeze().numpy())
                 optimizer.zero_grad()
+                with torch.no_grad():
+                    output_mri = model_tchr(mri_batch.unsqueeze(1))[0].squeeze().detach().cpu()
+                    torch.cuda.empty_cache()
                 # forward
-                output_mri = 0
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
-                        # output_mri = model(mri_batch.unsqueeze(1).to(device))[0].detach().cpu()
-                        output_ct = model(ct_actual.unsqueeze(1))[0].detach().cpu()
-                        torch.cuda.empty_cache()
-                    pseudo_lbl = applyTransformation(np.float32(output_mri.squeeze().numpy()),
-                                                     np.float32(output_ct.squeeze().numpy()), getWarpVal)
-                    loss, acc = criterion(output_ct[0].squeeze(0).squeeze(0).to(device), torch.from_numpy(pseudo_lbl.numpy()).to(device))
+                        output_ct = model(ct_actual.unsqueeze(1))[0]
+                    pseudo_lbl = applyTransformation(np.float32(output_ct.squeeze().detach().cpu().numpy()),
+                                                     np.float32(output_mri.numpy()),
+                                                     getWarpVal)
+
+                    loss, acc = criterion(output_ct[0].squeeze(0).squeeze(0),
+                                          torch.from_numpy(pseudo_lbl.numpy()).to("cuda:3"))
 
                     # backward + optimize only if in training phase
                     if phase == 0:
@@ -102,21 +111,22 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                         scaler.step(optimizer)
                         scaler.update()
 
-
-                        if epoch % 5 == 0 and idx == store_idx:
+                        if epoch % 5 == 0:
                             print("Storing images", idx, epoch)
-                            mri = mri_batch.squeeze()[8:9,:,:]
-                            ct = ct_actual.squeeze()[8:9,:,:]
-                            mri_op = output_mri[0].squeeze()[8:9,:,:]
-                            ct_op = output_ct[0].squeeze()[8:9,:,:].detach().cpu()
-                            mri_lbl = labels_batch.squeeze()[8:9,:,:].detach().cpu()
-                            op = pseudo_lbl[8:9,:,:]
-
+                            mri = mri_batch.squeeze()[8:9, :, :]
+                            ct = ct_actual.squeeze()[8:9, :, :]
+                            mri_op = output_mri[8:9, :, :].float()
+                            ct_op = output_ct[0].squeeze()[8:9, :, :].detach().cpu().float()
+                            mri_lbl = labels_batch.squeeze()[8:9, :, :].detach().cpu()
+                            op = pseudo_lbl[8:9, :, :]
+                            mri_op = (mri_op - mri_op.min()) / (mri_op.max() - mri_op.min())
+                            ct_op = (ct_op - ct_op.min()) / (ct_op.max() - ct_op.min())
                             fig = saveImage(mri, mri_op, mri_lbl, ct, ct_op, op)
-                            text = "Images"
+                            text = "Images on - " + str(epoch)
                             writer.add_figure(text, fig, epoch)
-
-
+                    del output_mri
+                    del output_ct
+                    torch.cuda.empty_cache()
                     # statistics
                     running_loss += loss.item()
                     running_corrects += acc.item()
@@ -153,8 +163,9 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
             # save the model
             torch.save(model, modelPath)
             # load best model weights
-            model.load_state_dict(best_model_wts)
-            torch.save(model, modelPath_bestweight)
+            if not best_model_wts == "":
+                model.load_state_dict(best_model_wts)
+                torch.save(model, modelPath_bestweight)
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
