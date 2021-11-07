@@ -1,22 +1,19 @@
 import os
 import sys
-
 import torch
-
-torch.set_num_threads(1)
-
 import torch.optim as optim
 import torchio as tio
 from torchvision import transforms
-
 from teacher_dataloader import TeacherCustomDataset
 from teacher_train import train
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
 os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+torch.set_num_threads(1)
 
 from Model.unet3d import U_Net
+
 try:
     from Code.Utils.CSVGenerator import checkCSV
 except ImportError:
@@ -33,8 +30,8 @@ class TeacherPipeline:
     @staticmethod
     def defineModel():
         # Define Model
-        #model = torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
-                               #in_channels=30, out_channels=130, init_features=32, pretrained=False)
+        # model = torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
+        # in_channels=30, out_channels=130, init_features=32, pretrained=False)
 
         model = U_Net()
         return model

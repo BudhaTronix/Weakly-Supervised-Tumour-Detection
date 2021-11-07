@@ -1,15 +1,9 @@
 import os
 import sys
-
 import torch
-import torchio as tio
-
-torch.set_num_threads(1)
-
 import torch.optim as optim
 import torchio as tio
 from torchvision import transforms
-
 from student_dataloader import StudentCustomDataset
 from student_train import train
 from Code.Utils.antsImpl import getWarp_antspy, applyTransformation
@@ -18,7 +12,7 @@ os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
 # os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
-
+torch.set_num_threads(1)
 from Model.unet3d import U_Net
 
 try:

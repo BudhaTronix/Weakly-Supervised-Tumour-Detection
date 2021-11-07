@@ -31,18 +31,17 @@ class CustomDataset(Dataset):
         # Get image name from the pandas df
         single_image_name = self.image_arr[index]
         # Open image
-        img = tio.ScalarImage(self.dataset_path+single_image_name)[tio.DATA].permute(0, 3, 1, 2)
+        img = tio.ScalarImage(self.dataset_path + "images/" + single_image_name)[tio.DATA]
+
         # Transform image
         img_transformed = self.transform(img).squeeze()
         # Get label(class) of the image based on the cropped pandas column
-        image_label = self.label_arr[index]
+
+        image_label_name = self.label_arr[index]
+        image_label = tio.ScalarImage(self.dataset_path + "gt/" + image_label_name)[tio.DATA]
+        image_label = self.transform(image_label).squeeze()
 
         return img_transformed, image_label
 
     def __len__(self):
         return self.data_len
-
-
-
-
-
