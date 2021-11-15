@@ -31,10 +31,7 @@ class TeacherPipeline:
     @staticmethod
     def defineModel():
         # Define Model
-        """model = torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
-                               in_channels=30, out_channels=30, init_features=32, pretrained=False)"""
         model = U_Net()
-        # model = torch.nn.DataParallel(model, device_ids=[0, 1, 2])
         return model
 
     @staticmethod
@@ -43,16 +40,11 @@ class TeacherPipeline:
         return optimizer
 
     @staticmethod
-    def getWarp(img1, img2):
-        return 0
-
-    @staticmethod
     def getTransform(m, s):
         preprocess = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=m, std=s),
         ])
-
         return preprocess
 
     def storeWarp(self):

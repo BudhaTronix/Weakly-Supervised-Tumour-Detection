@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import torchio as tio
 import torch
+import torch.nn.functional as f
 import os
 torch.set_num_threads(1)
 from torch.utils.data.dataset import Dataset
@@ -59,6 +60,7 @@ class StudentCustomDataset(Dataset):
 
         """warpVal = getWarp_antspy(mri_transformed.squeeze().numpy(),
                                  ct_transformed.squeeze().numpy())"""
+        mri_transformed = f.interpolate(mri_transformed, scale_factor=2)
 
         return mri_transformed, ct_transformed, lbl_transformed, ct_actualSize
 

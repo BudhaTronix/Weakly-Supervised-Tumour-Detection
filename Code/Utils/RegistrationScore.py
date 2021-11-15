@@ -36,6 +36,9 @@ def main():
     gtPath = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/ct/"
     translation_types = ["SyN", "Affine", "BOLDAffine", "BOLDRigid", "QuickRigid", "Rigid", "Similarity",
                          "SyNRA", "Translation"]
+    """
+        Affine -> SyN,SyNRA
+    """
     imgPath = Path(imgPath)
     gtPath = Path(gtPath)
     save = False

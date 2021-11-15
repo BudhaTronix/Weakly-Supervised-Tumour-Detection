@@ -19,6 +19,7 @@ from Code.Utils.antsImpl import getWarp_antspy, applyTransformation
 
 scaler = GradScaler()
 
+
 # os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
@@ -52,15 +53,15 @@ def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
     return figure
 
 
-def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer,
+def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, modelM2, optimizer,
           log=False, device="cuda:0", model_Path_trained=""):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = "runs/Training/Student_Unet3D/{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
-    model_tchr = torch.load(model_Path_trained)
-    model_tchr.eval()
-    #model_tchr.to(device)
+    modelM0 = torch.load(model_Path_trained)
+    modelM0.eval()
+    # model_tchr.to(device)
     best_model_wts = ""
     best_acc = 0.0
     best_val_loss = 99999
@@ -75,10 +76,12 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
         for phase in [0, 1]:
             if phase == 0:
                 print("Model In Training mode")
-                model.train()  # Set model to training mode
+                modelM1.train()  # Set model to training mode
+                modelM2.train()  # Set model to training mode
             else:
                 print("Model In Validation mode")
-                model.eval()  # Set model to evaluate mode
+                modelM1.eval()  # Set model to evaluate mode
+                modelM2.eval()  # Set model to evaluate mode
 
             running_loss = 0.0
             running_corrects = 0
@@ -87,20 +90,49 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
             for batch in tqdm(dataloaders[phase]):
                 gc.collect()
                 torch.cuda.empty_cache()
+                # Get Data
                 mri_batch, _, labels_batch, ct_actual = batch
-                getWarpVal = getWarp_antspy(mri_batch.squeeze().numpy(),
-                                            ct_actual.squeeze().numpy())
                 optimizer.zero_grad()
+
+                # Section 1
+                """
+                    Input to model M1     : MRI
+                    Input to model M1     : CT images
+                    Output from model M1  : Warp Field
+                """
+                with torch.set_grad_enabled(phase == 0):
+                    input = torch.cat((mri_batch, ct_actual), 0)
+                    with autocast(enabled=True):
+                        output_warp = modelM1(input.unsqueeze(1))[0]
+                # Section 2
+                """
+                    Use warp field on GT MRI -> Pseudo GT
+                    Use warp field on CT     -> Pseudo CTMR
+                    
+                    Input to model M2    : CT
+                    Input to model M2    : MR or Pseudo CTMR
+                    Output from model M2 : Image for training 
+                    
+                    Input to model M0 : Image for training  from Model M2
+                    Input to model M0 : Pseudo GT
+                    
+                """
+                waped_CT = output_warp * ct_actual  # Need to use interpolate to perform the transformation
+                wapde_GT = output_warp * labels_batch  # Need to use interpolate to perform the transformation
+                with torch.set_grad_enabled(phase == 0):
+                    input = torch.cat((waped_CT, ct_actual), 0)
+                    with autocast(enabled=True):
+                        output_warp = modelM1(input.unsqueeze(1))[0]
+
                 with torch.no_grad():
-                    output_mri = model_tchr(mri_batch.unsqueeze(1))[0].squeeze().detach().cpu()
+                    output_mri = modelM0(output_warp.unsqueeze(1))[0].squeeze().detach().cpu()
                     torch.cuda.empty_cache()
+
                 # forward
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
-                        output_ct = model(ct_actual.unsqueeze(1))[0]
-                    pseudo_lbl = applyTransformation(np.float32(output_ct.squeeze().detach().cpu().numpy()),
-                                                     np.float32(output_mri.numpy()),
-                                                     getWarpVal)
+                        output_ct = modelM2(ct_actual.unsqueeze(1))[0]
+                    pseudo_lbl = wapde_GT
 
                     loss, acc = criterion(output_ct[0].squeeze(0).squeeze(0),
                                           torch.from_numpy(pseudo_lbl.numpy()).to("cuda:3"))
@@ -130,9 +162,6 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                     # statistics
                     running_loss += loss.item()
                     running_corrects += acc.item()
-                    # outputs = outputs.cpu().detach().numpy() >= threshold_otsu(outputs.cpu().detach().numpy())
-                    # running_corrects += f1_score(outputs.astype(int).flatten(), labels_batch.numpy().flatten(),
-                    # average='macro')
                     idx += 1
 
             epoch_loss = running_loss / len(dataloaders[phase])
@@ -156,16 +185,16 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                 print("Saving the best model weights")
                 best_val_loss = epoch_loss
                 best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
+                best_model_wts = copy.deepcopy(modelM1.state_dict())
 
         if epoch % 10 == 0:
             print("Saving the model")
             # save the model
-            torch.save(model, modelPath)
+            torch.save(modelM1, modelPath)
             # load best model weights
             if not best_model_wts == "":
-                model.load_state_dict(best_model_wts)
-                torch.save(model, modelPath_bestweight)
+                modelM1.load_state_dict(best_model_wts)
+                torch.save(modelM1, modelPath_bestweight)
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
@@ -173,7 +202,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
 
     print("Saving the model")
     # save the model
-    torch.save(model, modelPath)
+    torch.save(modelM1, modelPath)
     # load best model weights
-    model.load_state_dict(best_model_wts)
-    torch.save(model, modelPath_bestweight)
+    modelM1.load_state_dict(best_model_wts)
+    torch.save(modelM1, modelPath_bestweight)
