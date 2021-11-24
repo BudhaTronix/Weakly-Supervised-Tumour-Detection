@@ -7,6 +7,7 @@ from torchvision import transforms
 from student_dataloader import StudentCustomDataset
 from student_train import train
 from Code.Utils.antsImpl import getWarp_antspy, applyTransformation
+from torch.nn.functional import interpolate
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
@@ -74,12 +75,12 @@ class TeacherPipeline:
         csv_file = "dataset.csv"
         transform_val = (32, 256, 256)
         transform = tio.CropOrPad(transform_val)
-        t_ct = tio.CropOrPad((32, 512, 512))
+        t_ct = tio.CropOrPad((32, 256, 256))
+
         num_epochs = 1000
         dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
         checkCSV_Student(dataset_Path=dataset_path, csv_FileName=csv_file, overwrite=True)
         dataset = StudentCustomDataset(dataset_path, csv_file, transform, t_ct)
-
         train_size = int(0.8 * len(dataset))
         val_size = len(dataset) - train_size
 
@@ -91,8 +92,10 @@ class TeacherPipeline:
 
         dataloaders = [train_loader, validation_loader]
 
-        train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model,
-              optimizer, log=True, model_Path_trained=model_Path_trained)
+        train(dataloaders, modelPath, modelPath_bestweight,
+              num_epochs, model, model,
+              optimizer, log=True,
+              model_Path_trained=model_Path_trained)
 
 
 obj = TeacherPipeline()

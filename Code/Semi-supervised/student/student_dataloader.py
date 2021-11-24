@@ -3,10 +3,8 @@ import pandas as pd
 import torchio as tio
 import torch
 import torch.nn.functional as f
-import os
 torch.set_num_threads(1)
 from torch.utils.data.dataset import Dataset
-from Code.Utils.antsImpl import getWarp_antspy
 
 #os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 class StudentCustomDataset(Dataset):
@@ -60,7 +58,9 @@ class StudentCustomDataset(Dataset):
 
         """warpVal = getWarp_antspy(mri_transformed.squeeze().numpy(),
                                  ct_transformed.squeeze().numpy())"""
-        mri_transformed = f.interpolate(mri_transformed, scale_factor=2)
+        #mri_transformed = f.interpolate(mri_transformed, scale_factor=.1)
+        #lbl_transformed = f.interpolate(lbl_transformed, scale_factor=.1)
+        #ct_actualSize = f.interpolate(ct_actualSize, scale_factor=.1)
 
         return mri_transformed, ct_transformed, lbl_transformed, ct_actualSize
 

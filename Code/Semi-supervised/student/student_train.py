@@ -60,6 +60,9 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, mod
         TBLOGDIR = "runs/Training/Student_Unet3D/{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
     modelM0 = torch.load(model_Path_trained)
+    modelM0.to("cuda:4")
+    modelM1.to("cuda:5")
+    modelM2.to("cuda:6")
     modelM0.eval()
     # model_tchr.to(device)
     best_model_wts = ""
@@ -69,6 +72,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, mod
     # model.to(device)
     criterion = DiceLoss()
     store_idx = int(len(dataloaders[0]) / 2)
+    print("Before Training")
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
         print('-' * 10)
@@ -103,7 +107,8 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, mod
                 with torch.set_grad_enabled(phase == 0):
                     input = torch.cat((mri_batch, ct_actual), 0)
                     with autocast(enabled=True):
-                        output_warp = modelM1(input.unsqueeze(1))[0]
+                        output_warp = modelM1(input.unsqueeze(1).to("cuda:6"))[0]
+
                 # Section 2
                 """
                     Use warp field on GT MRI -> Pseudo GT
@@ -117,22 +122,22 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, mod
                     Input to model M0 : Pseudo GT
                     
                 """
-                waped_CT = output_warp * ct_actual  # Need to use interpolate to perform the transformation
-                wapde_GT = output_warp * labels_batch  # Need to use interpolate to perform the transformation
+                warped_CT = output_warp #* ct_actual     # Need to use interpolate to perform the transformation
+                warpde_GT = output_warp #* labels_batch  # Need to use interpolate to perform the transformation
                 with torch.set_grad_enabled(phase == 0):
-                    input = torch.cat((waped_CT, ct_actual), 0)
+                    input = torch.cat((warped_CT, ct_actual), 0)
                     with autocast(enabled=True):
-                        output_warp = modelM1(input.unsqueeze(1))[0]
+                        output_warp = modelM1(input.unsqueeze(1).to("cuda:6"))[0]
 
                 with torch.no_grad():
-                    output_mri = modelM0(output_warp.unsqueeze(1))[0].squeeze().detach().cpu()
+                    output_mri = modelM0(output_warp.unsqueeze(1).to("cuda:5"))[0].squeeze().detach().cpu()
                     torch.cuda.empty_cache()
 
                 # forward
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
                         output_ct = modelM2(ct_actual.unsqueeze(1))[0]
-                    pseudo_lbl = wapde_GT
+                    pseudo_lbl = warpde_GT
 
                     loss, acc = criterion(output_ct[0].squeeze(0).squeeze(0),
                                           torch.from_numpy(pseudo_lbl.numpy()).to("cuda:3"))
@@ -177,7 +182,6 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, mod
                     writer.add_scalar("Loss/Validation", epoch_loss, epoch)
                     writer.add_scalar("Acc/Validation", epoch_acc, epoch)
 
-            # print('{} Loss: {:.4f} Acc: {:.4f}'.format(mode, epoch_loss, epoch_acc))
             print('{} Loss: {:.4f}'.format(mode, epoch_loss))
 
             # deep copy the model
