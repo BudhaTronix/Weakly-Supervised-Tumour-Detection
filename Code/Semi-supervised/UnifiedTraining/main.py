@@ -41,6 +41,7 @@ class Pipeline:
         self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
 
         self.scale_factor = 0.4
+        self.transform_val = (32, 128, 128)
 
     @staticmethod
     def defineModelM0():
@@ -70,12 +71,8 @@ class Pipeline:
 
         optimizer = self.defineOptimizer(modelM1, modelM2)
 
-        transform_val = (32, 256, 256)
-        transform = tio.CropOrPad(transform_val)
-        t_ct = tio.CropOrPad((32, 256, 256))
-
-        checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=True)
-        dataset = CustomDataset(self.dataset_path, self.csv_file, transform, t_ct, self.scale_factor)
+        checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
+        dataset = CustomDataset(self.dataset_path, self.csv_file, self.transform_val)
 
         train_size = int(0.8 * len(dataset))
         val_size = len(dataset) - train_size

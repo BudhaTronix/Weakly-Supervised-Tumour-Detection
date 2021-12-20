@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import torchio as tio
 import torch
+import torchio as tio
 import torch.nn.functional as f
 
 torch.set_num_threads(1)
@@ -9,7 +10,7 @@ from torch.utils.data.dataset import Dataset
 
 
 class CustomDataset(Dataset):
-    def __init__(self, dataset_path, csv_file, transform, t_ct, scale_factor):
+    def __init__(self, dataset_path, csv_file, transform_val):
         """
         Args:
             csv_file (string): csv file name
@@ -21,8 +22,8 @@ class CustomDataset(Dataset):
         # CSV Path
         self.csv_file = csv_file
         # Transforms
-        self.transform = transform
-        self.t_ct = t_ct
+        self.transform_val = transform_val
+        self.transform = tio.CropOrPad(self.transform_val)
         # Read the csv file
         self.data_info = pd.read_csv(self.dataset_path + "/" + self.csv_file, header=None)
         # First column contains the image paths
@@ -31,27 +32,19 @@ class CustomDataset(Dataset):
         self.label_arr = np.asarray(self.data_info.iloc[:, 1])
         # Calculate len
         self.data_len = len(self.data_info.index)
-        # Scale Factor
-        self.scale_factor = scale_factor
 
     def __getitem__(self, index):
-        # Open image
+        # Open MRI image
         img = tio.ScalarImage(self.dataset_path + "images/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
-        # Normalize the data
-        img = (img - img.min()) / (img.max() - img.min())
+        img = self.normalize(img)
         # Transform image
         mri_transformed = self.transform(img).squeeze(0)
 
-        # Open image
+        # Open CT image
         img = tio.ScalarImage(self.dataset_path + "ct/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
-        # Normalize the data
-        img = (img - img.min()) / (img.max() - img.min())
-        ct_actualSize = img
-        # Transform image
-        # ct_transformed = self.transform(img).squeeze(0)
-        # ct_actualSize = self.t_ct(img).squeeze(0)
+        ct_actualSize = self.normalize(img)
 
-        # Get label(class) of the image based on the cropped pandas column
+        # Open Labels image
         img_lbl = tio.ScalarImage(self.dataset_path + "gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
         np_frame = np.array(img_lbl)
         np_frame[np_frame < 240] = 0
@@ -60,11 +53,13 @@ class CustomDataset(Dataset):
         img_lbl = torch.Tensor(np_frame.astype(np.float))
         lbl_transformed = self.transform(img_lbl).squeeze(0)
 
-        # mri_transformed = f.interpolate(mri_transformed, scale_factor=self.scale_factor, mode="linear")  # .1 means 90% reduction
-        # lbl_transformed = f.interpolate(lbl_transformed, scale_factor=self.scale_factor, mode="linear")
-        ct_transformed = f.interpolate(ct_actualSize.unsqueeze(0), size=(32, 256, 256))
+        ct_transformed = f.interpolate(ct_actualSize.unsqueeze(0), size=self.transform_val)
 
         return mri_transformed, lbl_transformed, ct_transformed.squeeze(0).squeeze(0)
 
     def __len__(self):
         return self.data_len
+
+    @staticmethod
+    def normalize(img):
+        return (img - img.min()) / (img.max() - img.min())

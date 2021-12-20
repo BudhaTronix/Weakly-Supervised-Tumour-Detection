@@ -55,7 +55,7 @@ class U_Net_M1(nn.Module):
     Paper : https://arxiv.org/abs/1505.04597
     """
 
-    def __init__(self, in_ch=1, out_ch=1):
+    def __init__(self, in_ch=2, out_ch=1):
         super(U_Net_M1, self).__init__()
 
         n1 = 64  # TODO: original paper starts with 64

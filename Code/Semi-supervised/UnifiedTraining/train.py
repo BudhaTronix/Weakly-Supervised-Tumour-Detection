@@ -53,9 +53,9 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
         TBLOGDIR = "runs/Training/Student_Unet3D/{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
 
-    GPU_ID_M0 = "cuda:2"
-    GPU_ID_M1 = "cuda:3"
-    GPU_ID_M2 = "cuda:4"
+    GPU_ID_M0 = "cuda:5"
+    GPU_ID_M1 = "cuda:6"
+    GPU_ID_M2 = "cuda:7"
 
     # Model 0 - Pre-trained model
     modelM0.to(GPU_ID_M0)
@@ -119,18 +119,22 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
                 input = torch.cat((mri_batch, ct), 0)
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=False):
-                        output_warp = modelM1(input.unsqueeze(1).to(GPU_ID_M1))[0]
+                        output_warp = modelM1(input.unsqueeze(0).to(GPU_ID_M1))[0]
 
-                # Section 2
+                    # Section 2
+                    labels_batch_input_grid = torch.cat((labels_batch, labels_batch, labels_batch)).unsqueeze(
+                        0).permute(0, 2, 3, 4, 1)
+
                     # warped_MRI = F.grid_sample(mri_batch, output_warp, mode="trilinear")     # ct_actual
-                    pseudo_lbl = F.grid_sample(labels_batch.to(GPU_ID_M1), output_warp, mode="bilinear")  # labels_batch
+                    pseudo_lbl = F.grid_sample(output_warp, labels_batch_input_grid.to(GPU_ID_M1),
+                                               mode="bilinear")  # labels_batch
                     # input = torch.cat((warped_MRI, ct_actual), 0) #Attempt 2
                     input = torch.cat((mri_batch, ct), 0)  # Attempt 1
                     with autocast(enabled=True):
-                        output_mergeCTMR = modelM2(input.unsqueeze(1).to(GPU_ID_M2))[0]
-                        output_ct = modelM0(output_mergeCTMR.unsqueeze(1).to(GPU_ID_M0))[0].squeeze().detach().cpu()
+                        output_mergeCTMR = modelM2(input.unsqueeze(0).to(GPU_ID_M2))[0]
+                        output_ct = modelM0(output_mergeCTMR.unsqueeze(1).to(GPU_ID_M0))[0].squeeze()
 
-                    loss, acc = criterion(output_ct[0].squeeze(0).squeeze(0), pseudo_lbl.to(GPU_ID_M0))
+                    loss, acc = criterion(output_ct, pseudo_lbl.squeeze().to(GPU_ID_M0))
 
                     # backward + optimize only if in training phase
                     if phase == 0:
