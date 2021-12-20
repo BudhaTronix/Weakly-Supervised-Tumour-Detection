@@ -9,7 +9,7 @@ from torch.utils.data.dataset import Dataset
 
 
 class CustomDataset(Dataset):
-    def __init__(self, dataset_path, csv_file, transform, t_ct):
+    def __init__(self, dataset_path, csv_file, transform, t_ct, scale_factor):
         """
         Args:
             csv_file (string): csv file name
@@ -31,6 +31,8 @@ class CustomDataset(Dataset):
         self.label_arr = np.asarray(self.data_info.iloc[:, 1])
         # Calculate len
         self.data_len = len(self.data_info.index)
+        # Scale Factor
+        self.scale_factor = scale_factor
 
     def __getitem__(self, index):
         # Open image
@@ -44,9 +46,10 @@ class CustomDataset(Dataset):
         img = tio.ScalarImage(self.dataset_path + "ct/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
         # Normalize the data
         img = (img - img.min()) / (img.max() - img.min())
+        ct_actualSize = img
         # Transform image
-        ct_transformed = self.transform(img).squeeze(0)
-        ct_actualSize = self.t_ct(img).squeeze(0)
+        # ct_transformed = self.transform(img).squeeze(0)
+        # ct_actualSize = self.t_ct(img).squeeze(0)
 
         # Get label(class) of the image based on the cropped pandas column
         img_lbl = tio.ScalarImage(self.dataset_path + "gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
@@ -57,11 +60,11 @@ class CustomDataset(Dataset):
         img_lbl = torch.Tensor(np_frame.astype(np.float))
         lbl_transformed = self.transform(img_lbl).squeeze(0)
 
-        mri_transformed = f.interpolate(mri_transformed, scale_factor=.1)  # .1 means 90% reduction
-        lbl_transformed = f.interpolate(lbl_transformed, scale_factor=.1)
-        ct_actualSize = f.interpolate(ct_actualSize, scale_factor=.1)
+        # mri_transformed = f.interpolate(mri_transformed, scale_factor=self.scale_factor, mode="linear")  # .1 means 90% reduction
+        # lbl_transformed = f.interpolate(lbl_transformed, scale_factor=self.scale_factor, mode="linear")
+        ct_transformed = f.interpolate(ct_actualSize.unsqueeze(0), size=(32, 256, 256))
 
-        return mri_transformed, ct_transformed, lbl_transformed, ct_actualSize
+        return mri_transformed, lbl_transformed, ct_transformed.squeeze(0).squeeze(0)
 
     def __len__(self):
         return self.data_len

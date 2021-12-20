@@ -48,7 +48,7 @@ class up_conv(nn.Module):
         return x
 
 
-class U_Net(nn.Module):
+class U_Net_M1(nn.Module):
     """
     UNet - Basic Implementation
     Input _ [batch * channel(# of channels of each image) * depth(# of frames) * height * width].
@@ -56,9 +56,9 @@ class U_Net(nn.Module):
     """
 
     def __init__(self, in_ch=1, out_ch=1):
-        super(U_Net, self).__init__()
+        super(U_Net_M1, self).__init__()
 
-        n1 = 32  # TODO: original paper starts with 64
+        n1 = 64  # TODO: original paper starts with 64
         filters = [n1, n1 * 2, n1 * 4, n1 * 8, n1 * 16]  # 64,128,256,512,1024
 
         self.Maxpool1 = nn.MaxPool3d(kernel_size=2, stride=2)

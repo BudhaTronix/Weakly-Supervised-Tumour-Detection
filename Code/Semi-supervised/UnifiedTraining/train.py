@@ -53,9 +53,9 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
         TBLOGDIR = "runs/Training/Student_Unet3D/{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
 
-    GPU_ID_M0 = "cuda:0"
-    GPU_ID_M1 = "cuda:1"
-    GPU_ID_M2 = "cuda:2"
+    GPU_ID_M0 = "cuda:2"
+    GPU_ID_M1 = "cuda:3"
+    GPU_ID_M2 = "cuda:4"
 
     # Model 0 - Pre-trained model
     modelM0.to(GPU_ID_M0)
@@ -93,8 +93,9 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
             # Iterate over data.
             idx = 0
             for batch in tqdm(dataloaders[phase]):
+
                 # Get Data
-                mri_batch, _, labels_batch, ct_actual = batch
+                mri_batch, labels_batch, ct = batch
                 optimizer.zero_grad()
 
                 """
@@ -115,19 +116,16 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
                         Input to model M0 : Pseudo GT
                 """
                 # Section 1
-                input = torch.cat((mri_batch, ct_actual), 0)
+                input = torch.cat((mri_batch, ct), 0)
                 with torch.set_grad_enabled(phase == 0):
-                    with autocast(enabled=True):
+                    with autocast(enabled=False):
                         output_warp = modelM1(input.unsqueeze(1).to(GPU_ID_M1))[0]
 
                 # Section 2
-                warped_MRI = F.grid_sample(mri_batch, output_warp,
-                                           mode="trilinear")  # ct_actual
-                pseudo_lbl = F.grid_sample(labels_batch, output_warp,
-                                           mode="trilinear")  # labels_batch
-                with torch.set_grad_enabled(phase == 0):
+                    # warped_MRI = F.grid_sample(mri_batch, output_warp, mode="trilinear")     # ct_actual
+                    pseudo_lbl = F.grid_sample(labels_batch.to(GPU_ID_M1), output_warp, mode="bilinear")  # labels_batch
                     # input = torch.cat((warped_MRI, ct_actual), 0) #Attempt 2
-                    input = torch.cat((mri_batch, ct_actual), 0)  # Attempt 1
+                    input = torch.cat((mri_batch, ct), 0)  # Attempt 1
                     with autocast(enabled=True):
                         output_mergeCTMR = modelM2(input.unsqueeze(1).to(GPU_ID_M2))[0]
                         output_ct = modelM0(output_mergeCTMR.unsqueeze(1).to(GPU_ID_M0))[0].squeeze().detach().cpu()
@@ -140,10 +138,10 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
                         scaler.step(optimizer)
                         scaler.update()
 
-                        if epoch % 5 == 0:
+                        if epoch % 5 == 0 and log:
                             print("Storing images", idx, epoch)
                             mri = mri_batch.squeeze()[8:9, :, :]
-                            ct = ct_actual.squeeze()[8:9, :, :]
+                            ct = ct.squeeze()[8:9, :, :]
                             mri_op = output_ct[8:9, :, :].float()
                             ct_op = output_ct[0].squeeze()[8:9, :, :].detach().cpu().float()
                             mri_lbl = labels_batch.squeeze()[8:9, :, :].detach().cpu()
@@ -179,32 +177,20 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
                 print("Saving the best model weights")
                 best_val_loss = epoch_loss
                 best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(modelM1.state_dict())
+                torch.save(modelM1.state_dict(), M1_bw_path)
+                torch.save(modelM2.state_dict(), M2_bw_path)
 
         if epoch % 10 == 0:
             print("Saving the model")
             # save the model
-            torch.save(modelM1, M1_model_path)
-            torch.save(modelM1, M2_model_path)
-            # load best model weights
-            if not best_model_wts == "":
-                modelM1.load_state_dict(best_model_wts)
-                torch.save(modelM1, M1_bw_path)
-                torch.save(modelM2, M2_bw_path)
+            torch.save(modelM1.state_dict(), M1_model_path)
+            torch.save(modelM2.state_dict(), M2_model_path)
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     print('Best val Acc: {:4f}'.format(best_acc))
 
     # save the model
-    print("Saving the model")
-    torch.save(modelM1, M1_model_path)
-    torch.save(modelM2, M2_model_path)
-
-    # load best model weights
-    print("Saving the best weights")
-    modelM1.load_state_dict(best_model_wts)
-    torch.save(modelM1, M1_bw_path)
-
-    modelM2.load_state_dict(best_model_wts)
-    torch.save(modelM2, M2_bw_path)
+    print("Saving the model before exiting")
+    torch.save(modelM1.state_dict(), M1_model_path)
+    torch.save(modelM2.state_dict(), M2_model_path)

@@ -1,22 +1,17 @@
-import copy
-import time
 import os
-from datetime import datetime
-import matplotlib.pyplot as plt
-
+import time
 import torch
-
-torch.set_num_threads(1)
-from skimage.filters import threshold_otsu
-from sklearn.metrics import f1_score
+import matplotlib.pyplot as plt
+from datetime import datetime
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-
 from Code.Utils.loss import DiceLoss
+
+torch.set_num_threads(1)
 scaler = GradScaler()
 
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 def saveImage(img, lbl, op):
     # create grid of images
     figure = plt.figure(figsize=(10, 10))
@@ -40,14 +35,12 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
         TBLOGDIR = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/UnifiedTraining/runs/Training/Teacher_Unet3D/{}".format(
             start_time)
         writer = SummaryWriter(TBLOGDIR)
-    best_model_wts = ""
     best_acc = 0.0
     best_val_loss = 99999
     since = time.time()
-    # model.to(device)
+    model.to(device)
     criterion = DiceLoss()
-    store_idx = int(len(dataloaders[0])/2)
-    # criterion = torch.nn.
+    store_idx = int(len(dataloaders[0]) / 2)
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
         print('-' * 10)
@@ -71,7 +64,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                 # forward
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
-                        outputs = model(image_batch.unsqueeze(1))
+                        outputs = model(image_batch.unsqueeze(1).to(device))
                         loss, acc = criterion(outputs[0].squeeze(1), labels_batch.to(device))
 
                     # backward + optimize only if in training phase
@@ -80,7 +73,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                         scaler.step(optimizer)
                         scaler.update()
 
-                        if epoch % 5 == 0 and idx == store_idx:
+                        if epoch % 5 == 0 and idx == store_idx and log:
                             print("Storing images", idx, epoch)
                             img = image_batch[:1, 14:15, :, :].squeeze(0).detach().cpu()
                             lbl = labels_batch[:1, 14:15, :, :].squeeze(0).detach().cpu()
@@ -92,9 +85,6 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
 
                     # statistics
                     running_loss += loss.item()
-                    """outputs = outputs[0].cpu().detach().numpy() >= threshold_otsu(outputs[0].cpu().detach().numpy())
-                    running_corrects += f1_score(outputs.astype(int).flatten(), labels_batch.numpy().flatten(),
-                                                 average='macro')"""
                     running_corrects += acc.item()
                     idx += 1
 
@@ -118,23 +108,17 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                 print("Saving the best model weights")
                 best_val_loss = epoch_loss
                 best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
+                torch.save(model.state_dict(), modelPath_bestweight)
 
+        # save the model weights after an interval
         if epoch % 10 == 0:
-            print("Saving the model")
-            # save the model
-            torch.save(model, modelPath)
-            # load best model weights
-            model.load_state_dict(best_model_wts)
-            torch.save(model, modelPath_bestweight)
+            print("Saving the model weights")
+            torch.save(model.state_dict(), modelPath)
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     print('Best val Acc: {:4f}'.format(best_acc))
 
-    print("Saving the model")
     # save the model
-    torch.save(model, modelPath)
-    # load best model weights
-    model.load_state_dict(best_model_wts)
-    torch.save(model, modelPath_bestweight)
+    print("Saving the model weights before exiting")
+    torch.save(model.state_dict(), modelPath)

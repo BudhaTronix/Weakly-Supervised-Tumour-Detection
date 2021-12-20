@@ -3,18 +3,17 @@ import sys
 import torch
 import torch.optim as optim
 import torchio as tio
-from torchvision import transforms
 from dataloader import CustomDataset
 from train import train
-from Code.Utils.antsImpl import getWarp_antspy, applyTransformation
-from torch.nn.functional import interpolate
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
 # os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 torch.set_num_threads(1)
-from Model.unet3d import U_Net
+from Model.M0 import U_Net_M0
+from Model.M2_Conv import conv_block
+from Model.M1 import U_Net_M1
 
 try:
     from Code.Utils.CSVGenerator import checkCSV_Student
@@ -23,10 +22,8 @@ except ImportError:
     from CSVGenerator import checkCSV_Student
 
 
-class TeacherPipeline:
-
+class Pipeline:
     def __init__(self):
-        self.dataset_Path = ""
         self.batch_size = 1
         # Model Weights
         self.modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/"
@@ -43,14 +40,21 @@ class TeacherPipeline:
         self.num_epochs = 1000
         self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
 
+        self.scale_factor = 0.4
+
+    @staticmethod
+    def defineModelM0():
+        model = U_Net_M0()
+        return model
+
     @staticmethod
     def defineModelM1():
-        model = U_Net()
+        model = U_Net_M1()
         return model
 
     @staticmethod
     def defineModelM2():
-        model = U_Net()
+        model = conv_block()
         return model
 
     @staticmethod
@@ -58,34 +62,9 @@ class TeacherPipeline:
         optimizer = optim.Adam((list(modelM1.parameters()) + list(modelM2.parameters())), lr=0.01)
         return optimizer
 
-    @staticmethod
-    def getTransform(m, s):
-        preprocess = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=m, std=s),
-        ])
-        return preprocess
-
-    def storeWarp(self):
-        csv_file = "dataset.csv"
-        transform_val = (16, 16, 16)
-        transform = tio.CropOrPad(transform_val)
-        dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
-        checkCSV_Student(dataset_Path=dataset_path, csv_FileName=csv_file, overwrite=True)
-        dataset = CustomDataset(dataset_path, csv_file, transform)
-
-        dataloaders = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
-
-        for batch in dataloaders:
-            mri_batch, ct_batch, labels_batch = batch
-
-            getWarpVal = getWarp_antspy(mri_batch.detach().cpu().squeeze().numpy(),
-                                        ct_batch.detach().cpu().squeeze().numpy())
-
-            print(getWarpVal)
-
     def trainModel(self):
-        modelM0 = torch.load(self.M0_model_path)
+        modelM0 = self.defineModelM0()
+        modelM0.load_state_dict(torch.load(self.M0_model_path))
         modelM1 = self.defineModelM1()
         modelM2 = self.defineModelM2()
 
@@ -96,7 +75,8 @@ class TeacherPipeline:
         t_ct = tio.CropOrPad((32, 256, 256))
 
         checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=True)
-        dataset = CustomDataset(self.dataset_path, self.csv_file, transform, t_ct)
+        dataset = CustomDataset(self.dataset_path, self.csv_file, transform, t_ct, self.scale_factor)
+
         train_size = int(0.8 * len(dataset))
         val_size = len(dataset) - train_size
 
@@ -108,10 +88,10 @@ class TeacherPipeline:
 
         dataloaders = [train_loader, validation_loader]
 
-        train(dataloaders, self.M1_model_path, self.M1_bw_path, self.M2_model_path , self.M1_bw_path,
+        train(dataloaders, self.M1_model_path, self.M1_bw_path, self.M2_model_path, self.M2_bw_path,
               self.num_epochs, modelM0, modelM1, modelM2,
-              optimizer, log=True, )
+              optimizer, log=False)
 
 
-obj = TeacherPipeline()
+obj = Pipeline()
 obj.trainModel()
