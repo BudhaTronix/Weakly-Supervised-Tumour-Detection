@@ -1,26 +1,19 @@
 import copy
-import gc
 import time
 from datetime import datetime
-import os
 import torch
-import numpy as np
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
 torch.set_num_threads(1)
-from skimage.filters import threshold_otsu
-from sklearn.metrics import f1_score
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from Code.Utils.loss import DiceLoss
-from Code.Utils.antsImpl import getWarp_antspy, applyTransformation
 
 scaler = GradScaler()
 
-
-# os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
     # create grid of images
@@ -53,25 +46,31 @@ def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
     return figure
 
 
-def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, modelM2, optimizer,
-          log=False, device="cuda:0", model_Path_trained=""):
+def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num_epochs, modelM0, modelM1, modelM2,
+          optimizer, log=False):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = "runs/Training/Student_Unet3D/{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
-    modelM0 = torch.load(model_Path_trained)
-    modelM0.to("cuda:4")
-    modelM1.to("cuda:5")
-    modelM2.to("cuda:6")
-    modelM0.eval()
-    # model_tchr.to(device)
+
+    GPU_ID_M0 = "cuda:0"
+    GPU_ID_M1 = "cuda:1"
+    GPU_ID_M2 = "cuda:2"
+
+    # Model 0 - Pre-trained model
+    modelM0.to(GPU_ID_M0)
+
+    # Model 1 - Training on
+    modelM1.to(GPU_ID_M1)
+
+    # Model 2 - Pre-trained model
+    modelM2.to(GPU_ID_M2)
+
     best_model_wts = ""
     best_acc = 0.0
     best_val_loss = 99999
     since = time.time()
-    # model.to(device)
     criterion = DiceLoss()
-    store_idx = int(len(dataloaders[0]) / 2)
     print("Before Training")
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
@@ -80,10 +79,12 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, mod
         for phase in [0, 1]:
             if phase == 0:
                 print("Model In Training mode")
+                modelM0.eval()  # Set model to evaluate mode
                 modelM1.train()  # Set model to training mode
                 modelM2.train()  # Set model to training mode
             else:
                 print("Model In Validation mode")
+                modelM0.eval()  # Set model to evaluate mode
                 modelM1.eval()  # Set model to evaluate mode
                 modelM2.eval()  # Set model to evaluate mode
 
@@ -92,55 +93,46 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, mod
             # Iterate over data.
             idx = 0
             for batch in tqdm(dataloaders[phase]):
-                gc.collect()
-                torch.cuda.empty_cache()
                 # Get Data
                 mri_batch, _, labels_batch, ct_actual = batch
                 optimizer.zero_grad()
 
+                """
+                    # Section 1
+                        Input to model M1     : MRI
+                        Input to model M1     : CT images
+                        Output from model M1  : Warp Field
+
+                    # Section 2
+                        Use warp field on GT MRI -> Pseudo GT
+                        Use warp field on CT     -> Pseudo CTMR
+    
+                        Input to model M2    : CT
+                        Input to model M2    : MR or Pseudo CTMR
+                        Output from model M2 : Image for training 
+    
+                        Input to model M0 : Image for training from Model M2
+                        Input to model M0 : Pseudo GT
+                """
                 # Section 1
-                """
-                    Input to model M1     : MRI
-                    Input to model M1     : CT images
-                    Output from model M1  : Warp Field
-                """
+                input = torch.cat((mri_batch, ct_actual), 0)
                 with torch.set_grad_enabled(phase == 0):
-                    input = torch.cat((mri_batch, ct_actual), 0)
                     with autocast(enabled=True):
-                        output_warp = modelM1(input.unsqueeze(1).to("cuda:6"))[0]
+                        output_warp = modelM1(input.unsqueeze(1).to(GPU_ID_M1))[0]
 
                 # Section 2
-                """
-                    Use warp field on GT MRI -> Pseudo GT
-                    Use warp field on CT     -> Pseudo CTMR
-                    
-                    Input to model M2    : CT
-                    Input to model M2    : MR or Pseudo CTMR
-                    Output from model M2 : Image for training 
-                    
-                    Input to model M0 : Image for training  from Model M2
-                    Input to model M0 : Pseudo GT
-                    
-                """
-                warped_CT = output_warp #* ct_actual     # Need to use interpolate to perform the transformation
-                warpde_GT = output_warp #* labels_batch  # Need to use interpolate to perform the transformation
+                warped_MRI = F.grid_sample(mri_batch, output_warp,
+                                           mode="trilinear")  # ct_actual
+                pseudo_lbl = F.grid_sample(labels_batch, output_warp,
+                                           mode="trilinear")  # labels_batch
                 with torch.set_grad_enabled(phase == 0):
-                    input = torch.cat((warped_CT, ct_actual), 0)
+                    # input = torch.cat((warped_MRI, ct_actual), 0) #Attempt 2
+                    input = torch.cat((mri_batch, ct_actual), 0)  # Attempt 1
                     with autocast(enabled=True):
-                        output_warp = modelM1(input.unsqueeze(1).to("cuda:6"))[0]
+                        output_mergeCTMR = modelM2(input.unsqueeze(1).to(GPU_ID_M2))[0]
+                        output_ct = modelM0(output_mergeCTMR.unsqueeze(1).to(GPU_ID_M0))[0].squeeze().detach().cpu()
 
-                with torch.no_grad():
-                    output_mri = modelM0(output_warp.unsqueeze(1).to("cuda:5"))[0].squeeze().detach().cpu()
-                    torch.cuda.empty_cache()
-
-                # forward
-                with torch.set_grad_enabled(phase == 0):
-                    with autocast(enabled=True):
-                        output_ct = modelM2(ct_actual.unsqueeze(1))[0]
-                    pseudo_lbl = warpde_GT
-
-                    loss, acc = criterion(output_ct[0].squeeze(0).squeeze(0),
-                                          torch.from_numpy(pseudo_lbl.numpy()).to("cuda:3"))
+                    loss, acc = criterion(output_ct[0].squeeze(0).squeeze(0), pseudo_lbl.to(GPU_ID_M0))
 
                     # backward + optimize only if in training phase
                     if phase == 0:
@@ -152,7 +144,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, mod
                             print("Storing images", idx, epoch)
                             mri = mri_batch.squeeze()[8:9, :, :]
                             ct = ct_actual.squeeze()[8:9, :, :]
-                            mri_op = output_mri[8:9, :, :].float()
+                            mri_op = output_ct[8:9, :, :].float()
                             ct_op = output_ct[0].squeeze()[8:9, :, :].detach().cpu().float()
                             mri_lbl = labels_batch.squeeze()[8:9, :, :].detach().cpu()
                             op = pseudo_lbl[8:9, :, :]
@@ -161,9 +153,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, mod
                             fig = saveImage(mri, mri_op, mri_lbl, ct, ct_op, op)
                             text = "Images on - " + str(epoch)
                             writer.add_figure(text, fig, epoch)
-                    del output_mri
-                    del output_ct
-                    torch.cuda.empty_cache()
+
                     # statistics
                     running_loss += loss.item()
                     running_corrects += acc.item()
@@ -194,19 +184,27 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, modelM1, mod
         if epoch % 10 == 0:
             print("Saving the model")
             # save the model
-            torch.save(modelM1, modelPath)
+            torch.save(modelM1, M1_model_path)
+            torch.save(modelM1, M2_model_path)
             # load best model weights
             if not best_model_wts == "":
                 modelM1.load_state_dict(best_model_wts)
-                torch.save(modelM1, modelPath_bestweight)
+                torch.save(modelM1, M1_bw_path)
+                torch.save(modelM2, M2_bw_path)
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     print('Best val Acc: {:4f}'.format(best_acc))
 
-    print("Saving the model")
     # save the model
-    torch.save(modelM1, modelPath)
+    print("Saving the model")
+    torch.save(modelM1, M1_model_path)
+    torch.save(modelM2, M2_model_path)
+
     # load best model weights
+    print("Saving the best weights")
     modelM1.load_state_dict(best_model_wts)
-    torch.save(modelM1, modelPath_bestweight)
+    torch.save(modelM1, M1_bw_path)
+
+    modelM2.load_state_dict(best_model_wts)
+    torch.save(modelM2, M2_bw_path)

@@ -37,7 +37,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
           log=False, device="cuda:3"):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
-        TBLOGDIR = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/student/runs/Training/Teacher_Unet3D/{}".format(
+        TBLOGDIR = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/UnifiedTraining/runs/Training/Teacher_Unet3D/{}".format(
             start_time)
         writer = SummaryWriter(TBLOGDIR)
     best_model_wts = ""
