@@ -47,10 +47,10 @@ def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
 
 
 def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num_epochs, modelM0, modelM1, modelM2,
-          optimizer, log=False):
+          optimizer, log=False, logPath=""):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
-        TBLOGDIR = "runs/Training/Student_Unet3D/{}".format(start_time)
+        TBLOGDIR = logPath + "{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
 
     GPU_ID_M0 = "cuda:5"
@@ -142,8 +142,7 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
                         scaler.step(optimizer)
                         scaler.update()
 
-                        if epoch % 5 == 0 and log:
-                            print("Storing images", idx, epoch)
+                        if epoch % 1 == 0 and log:
                             mri = mri_batch.squeeze()[8:9, :, :]
                             ct = ct.squeeze()[8:9, :, :]
                             mri_op = output_ct[8:9, :, :].float()

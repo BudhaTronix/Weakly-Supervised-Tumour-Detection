@@ -12,6 +12,8 @@ torch.set_num_threads(1)
 scaler = GradScaler()
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+
+
 def saveImage(img, lbl, op):
     # create grid of images
     figure = plt.figure(figsize=(10, 10))
@@ -29,11 +31,10 @@ def saveImage(img, lbl, op):
 
 
 def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer,
-          log=False, device="cuda:4"):
+          log=False, logPath="", device="cuda:4"):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
-        TBLOGDIR = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/UnifiedTraining/runs/Training/Teacher_Unet3D/{}".format(
-            start_time)
+        TBLOGDIR = logPath + "{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
     best_acc = 0.0
     best_val_loss = 99999
@@ -74,7 +75,7 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                         scaler.update()
 
                         if epoch % 5 == 0 and idx == store_idx and log:
-                            print("Storing images", idx, epoch)
+                            # print("Storing images", idx, epoch)
                             img = image_batch[:1, 14:15, :, :].squeeze(0).detach().cpu()
                             lbl = labels_batch[:1, 14:15, :, :].squeeze(0).detach().cpu()
                             op = outputs[0][:1, :1, 14:15, :, :].squeeze(0).squeeze(0).detach().cpu()

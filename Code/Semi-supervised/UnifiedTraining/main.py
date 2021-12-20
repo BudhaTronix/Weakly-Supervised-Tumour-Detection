@@ -39,6 +39,7 @@ class Pipeline:
         self.csv_file = "dataset.csv"
         self.num_epochs = 1000
         self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
+        self.logPath = "runs/Training/"
 
         self.scale_factor = 0.4
         self.transform_val = (32, 128, 128)
@@ -87,7 +88,7 @@ class Pipeline:
 
         train(dataloaders, self.M1_model_path, self.M1_bw_path, self.M2_model_path, self.M2_bw_path,
               self.num_epochs, modelM0, modelM1, modelM2,
-              optimizer, log=False)
+              optimizer, log=True, logPath=self.logPath)
 
 
 obj = Pipeline()

@@ -25,6 +25,7 @@ class Pipeline:
         self.M0_bw_path = self.modelPath + "M0_bw.pth"
 
         self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
+        self.logPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/UnifiedTraining/runs/Training/"
         self.csv_file = "dataset_teacher.csv"
         self.transform_val = (32, 256, 256)
         self.num_epochs = 200
@@ -58,7 +59,8 @@ class Pipeline:
         validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True)
 
         dataloaders = [train_loader, validation_loader]
-        train(dataloaders, self.M0_model_path, self.M0_bw_path, self.num_epochs, model, optimizer, log=False)
+        train(dataloaders, self.M0_model_path, self.M0_bw_path, self.num_epochs, model, optimizer,
+              log=True, logPath=self.logPath)
 
 
 obj = Pipeline()

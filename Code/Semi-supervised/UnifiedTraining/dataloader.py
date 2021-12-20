@@ -13,9 +13,9 @@ class CustomDataset(Dataset):
     def __init__(self, dataset_path, csv_file, transform_val):
         """
         Args:
-            csv_file (string): csv file name
+            csv_file (string)    : csv file name
             dataset_path (string): path to the folder where images are
-            transform: pytorch(torchIO) transforms for transforms and tensor conversion
+            transform            : pytorch(torchIO) transforms for transforms and tensor conversion
         """
         # Dataset Path
         self.dataset_path = dataset_path
