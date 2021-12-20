@@ -27,7 +27,7 @@ class Pipeline:
         self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
         self.csv_file = "dataset_teacher.csv"
         self.transform_val = (32, 256, 256)
-        self.num_epochs = 1000
+        self.num_epochs = 200
 
     @staticmethod
     def defineModel():
