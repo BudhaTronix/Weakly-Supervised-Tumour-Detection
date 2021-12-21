@@ -1,15 +1,14 @@
 import copy
+import random
 import time
-import os
+from datetime import datetime
+
 import matplotlib.pyplot as plt
 import torch
-import random
-from skimage.filters import threshold_otsu
-from sklearn.metrics import f1_score
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from datetime import datetime
+
 from Code.Utils.loss import DiceLoss
 
 scaler = GradScaler()

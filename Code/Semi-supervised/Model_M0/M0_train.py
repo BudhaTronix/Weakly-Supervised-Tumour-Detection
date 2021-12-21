@@ -1,11 +1,13 @@
 import os
 import time
-import torch
-import matplotlib.pyplot as plt
 from datetime import datetime
+
+import matplotlib.pyplot as plt
+import torch
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+
 from Code.Utils.loss import DiceLoss
 
 torch.set_num_threads(1)

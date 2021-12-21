@@ -1,21 +1,26 @@
-import copy
+import sys
 import time
 from datetime import datetime
+
+import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
 
 torch.set_num_threads(1)
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from Code.Utils.loss import DiceLoss
+try:
+    from Code.Utils.loss import DiceLoss
+except ImportError:
+    sys.path.insert(0, '/project/mukhopad/tmp/LiverTumorSeg/Code/')
+    from Utils.loss import DiceLoss
 
 scaler = GradScaler()
 
 
-def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
+def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt):
     # create grid of images
     figure = plt.figure(figsize=(10, 10))
 
@@ -23,9 +28,9 @@ def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
     plt.grid(False)
     plt.imshow(mri.permute(1, 2, 0), cmap="gray")
 
-    plt.subplot(232, title="MRI OP")
+    plt.subplot(232, title="CT MR Merg")
     plt.grid(False)
-    plt.imshow(mri_op.permute(1, 2, 0).to(torch.float), cmap="gray")
+    plt.imshow(ctmri_merge.permute(1, 2, 0).to(torch.float), cmap="gray")
 
     plt.subplot(233, title="MRI LBL")
     plt.grid(False)
@@ -39,9 +44,9 @@ def saveImage(mri, mri_op, mri_lbl, ct, ct_op, op):
     plt.grid(False)
     plt.imshow(ct_op.permute(1, 2, 0).to(torch.float), cmap="gray")
 
-    plt.subplot(236, title="CT LBL")
+    plt.subplot(236, title="Pseudo CT LBL")
     plt.grid(False)
-    plt.imshow(torch.tensor(op).permute(1, 2, 0), cmap="gray")
+    plt.imshow(torch.tensor(pseudo_gt).permute(1, 2, 0), cmap="gray")
 
     return figure
 
@@ -142,16 +147,16 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
                         scaler.step(optimizer)
                         scaler.update()
 
-                        if epoch % 1 == 0 and log:
+                        if epoch % 10 == 0 and log:
                             mri = mri_batch.squeeze()[8:9, :, :]
                             ct = ct.squeeze()[8:9, :, :]
-                            mri_op = output_ct[8:9, :, :].float()
-                            ct_op = output_ct[0].squeeze()[8:9, :, :].detach().cpu().float()
+                            ctmri_merge = output_mergeCTMR.squeeze()[8:9, :, :].float().detach().cpu()
+                            ct_op = output_ct[8:9, :, :].detach().cpu().float()
                             mri_lbl = labels_batch.squeeze()[8:9, :, :].detach().cpu()
-                            op = pseudo_lbl[8:9, :, :]
-                            mri_op = (mri_op - mri_op.min()) / (mri_op.max() - mri_op.min())
+                            pseudo_gt = pseudo_lbl.squeeze()[8:9, :, :].detach().cpu()
+                            ctmri_merge = (ctmri_merge - ctmri_merge.min()) / (ctmri_merge.max() - ctmri_merge.min())
                             ct_op = (ct_op - ct_op.min()) / (ct_op.max() - ct_op.min())
-                            fig = saveImage(mri, mri_op, mri_lbl, ct, ct_op, op)
+                            fig = saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt)
                             text = "Images on - " + str(epoch)
                             writer.add_figure(text, fig, epoch)
 

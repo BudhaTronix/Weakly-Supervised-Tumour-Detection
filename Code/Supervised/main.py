@@ -1,14 +1,14 @@
 import os
 import sys
-import torch
+
 import torch.optim as optim
-import numpy as np
 import torchio as tio
 from torchvision import transforms
+
 from Code.Utils.loss import DiceLoss
-from train import train
-from dataloader import CustomDataset
 from Model.unet import U_Net
+from dataloader import CustomDataset
+from train import train
 
 try:
     from Code.Utils.CSVGenerator import checkCSV_Student
@@ -63,7 +63,5 @@ def trainModel():
 
     train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, criterion, optimizer)
 
+
 trainModel()
-
-
-

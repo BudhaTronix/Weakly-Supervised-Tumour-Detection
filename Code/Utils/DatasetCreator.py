@@ -1,10 +1,11 @@
-import torch
-from pathlib import Path
-from tqdm import tqdm
-import tempfile
-import os
-import SimpleITK as sitk
 import glob
+import os
+import tempfile
+from pathlib import Path
+
+import SimpleITK as sitk
+import torch
+from tqdm import tqdm
 
 torch.set_num_threads(1)
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"

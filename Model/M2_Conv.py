@@ -18,4 +18,3 @@ class conv_block(nn.Module):
     def forward(self, x):
         x = self.conv(x)
         return x
-

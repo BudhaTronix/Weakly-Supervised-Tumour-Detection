@@ -1,5 +1,4 @@
 import ants
-import numpy as np
 
 """
 
@@ -36,8 +35,9 @@ warped_moving = mytx['warpedmovout']
 mywarpedimage = ants.apply_transforms(fixed=f, moving=m,
                                       transformlist=mytx['fwdtransforms'])
 moving_filename = "output_affine"
-ants.image_write(warped_moving, '/project/tawde/DL_Liver/NewDataforReg/CTDIcom/1/Nifty/Output/' + moving_filename + ".nii.gz",
-ri=False)
+ants.image_write(warped_moving,
+                 '/project/tawde/DL_Liver/NewDataforReg/CTDIcom/1/Nifty/Output/' + moving_filename + ".nii.gz",
+                 ri=False)
 
 # mywarpedimage.plot()
 

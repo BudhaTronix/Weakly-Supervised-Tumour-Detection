@@ -2,11 +2,12 @@ import ants
 
 
 def getWarp_antspy(moving, fixed):
-    #mi = ants.image_read(moving)
-    #fi = ants.image_read(fixed)
+    # mi = ants.image_read(moving)
+    # fi = ants.image_read(fixed)
     mi = ants.from_numpy(moving)
     fi = ants.from_numpy(fixed)
-    mytx = ants.registration(fixed=fi, moving=mi, type_of_transform='SyN', verbose=False, outprefix="/scratch/mukhopad/")
+    mytx = ants.registration(fixed=fi, moving=mi, type_of_transform='SyN', verbose=False,
+                             outprefix="/scratch/mukhopad/")
 
     return mytx['fwdtransforms']
 
@@ -17,7 +18,6 @@ def applyTransformation(fixed, moving, transformation):
     mywarpedimage = ants.apply_transforms(fixed=fi, moving=mi,
                                           transformlist=transformation)
     return mywarpedimage
-
 
 
 def getWarp_simpleITK(img1, img2):

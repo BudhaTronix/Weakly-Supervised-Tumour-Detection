@@ -1,7 +1,9 @@
-from pathlib import Path
 import csv
 import os
+from pathlib import Path
+
 from tqdm import tqdm
+
 
 def checkCSV(dataset_Path, csv_FileName, overwrite=False):
     if overwrite:
@@ -26,6 +28,7 @@ def GenerateCSV(dataset_Path, csv_FileName):
                 if img_file_name.name == gt_file_name.name:
                     writer.writerow([img_file_name.name, gt_file_name.name])
 
+
 def checkCSV_Student(dataset_Path, csv_FileName, overwrite=False):
     if overwrite:
         if os.path.isfile(dataset_Path + csv_FileName):
@@ -36,6 +39,7 @@ def checkCSV_Student(dataset_Path, csv_FileName, overwrite=False):
         print(" CSV File Created!")
     else:
         print("\n Dataset file available")
+
 
 def GenerateCSV_Student(dataset_Path, csv_FileName):
     with open(dataset_Path + csv_FileName, 'w') as f:

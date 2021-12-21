@@ -1,9 +1,8 @@
 import numpy as np
 import pandas as pd
-import torchio as tio
 import torch
-import torchio as tio
 import torch.nn.functional as f
+import torchio as tio
 
 torch.set_num_threads(1)
 from torch.utils.data.dataset import Dataset

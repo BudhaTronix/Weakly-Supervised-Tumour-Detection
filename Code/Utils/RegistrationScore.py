@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
+
 import ants
 import torch
 import torchio as tio
-import os
+
 import pytorch_ssim
 
 torch.set_num_threads(1)
@@ -70,7 +72,8 @@ def main():
                         if torch.cuda.is_available():
                             img1 = img1.cuda()
                             img2 = img2.cuda()
-                        ssim = pytorch_ssim.ssim(img1.permute(2, 1, 0).unsqueeze(0), img2.permute(2, 1, 0).unsqueeze(0), size_average=False)
+                        ssim = pytorch_ssim.ssim(img1.permute(2, 1, 0).unsqueeze(0), img2.permute(2, 1, 0).unsqueeze(0),
+                                                 size_average=False)
                         print("SSIM :", ssim.item())
                     except:
                         print("Cannot calculate SSIM")

@@ -1,7 +1,7 @@
-from torch.utils.data.dataset import Dataset
 import numpy as np
 import pandas as pd
 import torchio as tio
+from torch.utils.data.dataset import Dataset
 
 
 class CustomDataset(Dataset):

@@ -1,5 +1,5 @@
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 
 def checkFile(imgPath_fp, gtPath_fp, subject_id, op_Path):

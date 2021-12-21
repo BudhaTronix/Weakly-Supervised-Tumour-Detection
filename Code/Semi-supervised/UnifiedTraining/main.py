@@ -1,8 +1,9 @@
 import os
 import sys
+
 import torch
 import torch.optim as optim
-import torchio as tio
+
 from dataloader import CustomDataset
 from train import train
 
@@ -11,15 +12,17 @@ os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
 # os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 torch.set_num_threads(1)
-from Model.M0 import U_Net_M0
-from Model.M2_Conv import conv_block
-from Model.M1 import U_Net_M1
+from pathlib import Path
 
-try:
-    from Code.Utils.CSVGenerator import checkCSV_Student
-except ImportError:
-    sys.path.insert(1, '/project/mukhopad/tmp/LiverTumorSeg/Code/Utils/')
-    from CSVGenerator import checkCSV_Student
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd())))
+print(ROOT_DIR)
+sys.path.insert(1, ROOT_DIR + "/")
+sys.path.insert(0, ROOT_DIR + "/")
+
+from Code.Utils.CSVGenerator import checkCSV_Student
+from Model.M0 import U_Net_M0
+from Model.M1 import U_Net_M1
+from Model.M2_Conv import conv_block
 
 
 class Pipeline:
