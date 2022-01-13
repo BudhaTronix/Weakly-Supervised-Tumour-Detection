@@ -35,13 +35,17 @@ class CustomDataset(Dataset):
     def __getitem__(self, index):
         # Open MRI image
         img = tio.ScalarImage(self.dataset_path + "images/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
-        img = self.normalize(img)
+        mri_actualsize = self.normalize(img)
         # Transform image
-        mri_transformed = self.transform(img).squeeze(0)
+        # mri_transformed = self.transform(img).squeeze(0)
 
         # Open CT image
         img = tio.ScalarImage(self.dataset_path + "ct/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
         ct_actualSize = self.normalize(img)
+        ct_transformed = f.interpolate(ct_actualSize.unsqueeze(0), size=self.transform_val) #optional, try without - Soumick
+
+        mri_transformed = f.interpolate(mri_actualsize.unsqueeze(0), size=ct_transformed.shape[2:])
+
 
         # Open Labels image
         img_lbl = tio.ScalarImage(self.dataset_path + "gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
@@ -50,11 +54,11 @@ class CustomDataset(Dataset):
         np_frame[np_frame >= 240] = 1
 
         img_lbl = torch.Tensor(np_frame.astype(np.float))
-        lbl_transformed = self.transform(img_lbl).squeeze(0)
+        lbl_transformed = f.interpolate(img_lbl.unsqueeze(0), size=ct_transformed.shape[2:])
 
-        ct_transformed = f.interpolate(ct_actualSize.unsqueeze(0), size=self.transform_val)
 
-        return mri_transformed, lbl_transformed, ct_transformed.squeeze(0).squeeze(0)
+
+        return mri_transformed.squeeze(0), lbl_transformed.squeeze(0), ct_transformed.squeeze(0)
 
     def __len__(self):
         return self.data_len

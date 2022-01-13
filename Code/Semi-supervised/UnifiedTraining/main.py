@@ -12,7 +12,7 @@ os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
 # os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 torch.set_num_threads(1)
-from pathlib import Path
+
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd())))
 print(ROOT_DIR)
@@ -82,7 +82,7 @@ class Pipeline:
         val_size = len(dataset) - train_size
 
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
-
+  
         # Training and Validation Section
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
         validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True)

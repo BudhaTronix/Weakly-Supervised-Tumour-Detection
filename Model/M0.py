@@ -130,4 +130,4 @@ class U_Net_M0(nn.Module):
         # print(out.shape)
         d1 = self.active(out)
 
-        return [d1]
+        return d1
