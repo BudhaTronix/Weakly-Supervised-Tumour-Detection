@@ -39,6 +39,8 @@ class Pipeline:
         self.M2_model_path = self.modelPath + "M2.pth"
         self.M2_bw_path = self.modelPath + "M2_bw.pth"
 
+        self.train_split = .9
+
         self.csv_file = "dataset.csv"
         self.num_epochs = 1000
         self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
@@ -64,7 +66,7 @@ class Pipeline:
 
     @staticmethod
     def defineOptimizer(modelM1, modelM2):
-        optimizer = optim.Adam((list(modelM1.parameters()) + list(modelM2.parameters())), lr=0.01)
+        optimizer = optim.Adam((list(modelM1.parameters()) + list(modelM2.parameters())), lr=0.001)
         return optimizer
 
     def trainModel(self):
@@ -78,7 +80,7 @@ class Pipeline:
         checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
         dataset = CustomDataset(self.dataset_path, self.csv_file, self.transform_val)
 
-        train_size = int(0.8 * len(dataset))
+        train_size = int(self.train_split * len(dataset))
         val_size = len(dataset) - train_size
 
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])

@@ -103,23 +103,6 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
                 mri_batch, labels_batch, ct = batch
                 optimizer.zero_grad()
 
-                """
-                    # Section 1
-                        Input to model M1     : MRI
-                        Input to model M1     : CT images
-                        Output from model M1  : Warp Field
-
-                    # Section 2
-                        Use warp field on GT MRI -> Pseudo GT
-                        Use warp field on CT     -> Pseudo CTMR
-    
-                        Input to model M2    : CT
-                        Input to model M2    : MR or Pseudo CTMR
-                        Output from model M2 : Image for training 
-    
-                        Input to model M0 : Image for training from Model M2
-                        Input to model M0 : Pseudo GT
-                """
                 # Section 1
                 input = torch.cat((ct, mri_batch), 1)
                 with torch.set_grad_enabled(phase == 0):
@@ -127,16 +110,14 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
                         output_warp = modelM1(input.to(GPU_ID_M1))
 
                     # Section 2
-                    #labels_batch_input_grid = torch.cat((labels_batch, labels_batch, labels_batch)).unsqueeze(
-                    #    0).permute(0, 2, 3, 4, 1)
-
-                    #grid should be: N, D_\text{out}, H_\text{out}, W_\text{out}, 3, but your model is giving you N, C, D, H, W where C=3
-                    output_warp = output_warp.permute(0,2,3,4,1)
+                    # grid should be: N, D_\text{out}, H_\text{out}, W_\text{out}, 3, but your model is giving you N, C, D, H, W where C=3
+                    output_warp = output_warp.permute(0, 2, 3, 4, 1)
                     warped_MRI = F.grid_sample(mri_batch.to(GPU_ID_M1), output_warp, mode="bilinear")     # ct_actual
                     pseudo_lbl = F.grid_sample(labels_batch.to(GPU_ID_M1), output_warp, mode="bilinear")  # labels_batch
+
                     input = torch.cat((ct.to(GPU_ID_M1), warped_MRI), 1) #Attempt 1
                     # input = torch.cat((ct, mri_batch), 1)  # Attempt 2
-                    with autocast(enabled=True):
+                    with autocast(enabled=False):
                         output_mergeCTMR = modelM2(input.to(GPU_ID_M2))
                         output_ct = modelM0(output_mergeCTMR.to(GPU_ID_M0)).squeeze()
 
@@ -148,7 +129,7 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
                         scaler.step(optimizer)
                         scaler.update()
 
-                        if epoch % 10 == 0 and log:
+                        if epoch % 1 == 0 and log:
                             mri = mri_batch.squeeze()[8:9, :, :]
                             ct = ct.squeeze()[8:9, :, :]
                             ctmri_merge = output_mergeCTMR.squeeze()[8:9, :, :].float().detach().cpu()
