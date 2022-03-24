@@ -21,8 +21,13 @@ sys.path.insert(0, ROOT_DIR + "/")
 
 from Code.Utils.CSVGenerator import checkCSV_Student
 from Model.M0 import U_Net_M0
+
 from Model.M1 import U_Net_M1
+from Model.M1_UNET_DeepSup import U_Net_DeepSup
+
 from Model.M2_Conv import conv_block
+from Model.M2_UNET import U_Net_M2
+
 
 
 class Pipeline:
@@ -42,7 +47,7 @@ class Pipeline:
         self.train_split = .9
 
         self.csv_file = "dataset.csv"
-        self.num_epochs = 1000
+        self.num_epochs = 5000
         self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
         self.logPath = "runs/Training/"
 
@@ -56,18 +61,20 @@ class Pipeline:
 
     @staticmethod
     def defineModelM1():
-        model = U_Net_M1()
+        # model = U_Net_M1()
+        model = U_Net_DeepSup()
         return model
 
     @staticmethod
     def defineModelM2():
-        model = conv_block()
+        # model = conv_block()
+        model = U_Net_M2()
         return model
 
     @staticmethod
     def defineOptimizer(modelM1, modelM2):
-        optimizer = optim.Adam((list(modelM1.parameters()) + list(modelM2.parameters())), lr=0.001)
-        return optimizer
+        optimizer = optim.Adam((list(modelM1.parameters()) + list(modelM2.parameters())), lr=0.0001)
+        return optimizer             
 
     def trainModel(self):
         modelM0 = self.defineModelM0()

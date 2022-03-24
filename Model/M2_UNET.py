@@ -48,15 +48,15 @@ class up_conv(nn.Module):
         return x
 
 
-class U_Net(nn.Module):
+class U_Net_M2(nn.Module):
     """
     UNet - Basic Implementation
     Input _ [batch * channel(# of channels of each image) * depth(# of frames) * height * width].
     Paper : https://arxiv.org/abs/1505.04597
     """
 
-    def __init__(self, in_ch=1, out_ch=1):
-        super(U_Net, self).__init__()
+    def __init__(self, in_ch=2, out_ch=1):
+        super(U_Net_M2, self).__init__()
 
         n1 = 64  # TODO: original paper starts with 64
         filters = [n1, n1 * 2, n1 * 4, n1 * 8, n1 * 16]  # 64,128,256,512,1024

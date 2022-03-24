@@ -1,6 +1,8 @@
 import os
 import sys
 import time
+import random
+import numpy
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -19,7 +21,14 @@ from Code.Utils.loss import DiceLoss
 
 scaler = GradScaler()
 
+torch.cuda.manual_seed(42)
+torch.manual_seed(42)
+numpy.random.seed(seed=42)
+random.seed(42)
 
+
+# Change image plot - mri with label
+# Give meaningful names to variables
 def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt):
     # create grid of images
     figure = plt.figure(figsize=(10, 10))
@@ -65,10 +74,10 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
     # Model 0 - Pre-trained model
     modelM0.to(GPU_ID_M0)
 
-    # Model 1 - Training on
+    # Model 1 -
     modelM1.to(GPU_ID_M1)
 
-    # Model 2 - Pre-trained model
+    # Model 2 -
     modelM2.to(GPU_ID_M2)
 
     best_model_wts = ""
@@ -103,39 +112,57 @@ def train(dataloaders, M1_model_path, M1_bw_path, M2_model_path, M2_bw_path, num
                 mri_batch, labels_batch, ct = batch
                 optimizer.zero_grad()
 
+                """
+                function - MRI , CT
+                
+                output - loss, fullywarped, flow
+                """
+
                 # Section 1
                 input = torch.cat((ct, mri_batch), 1)
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=False):
                         output_warp = modelM1(input.to(GPU_ID_M1))
 
-                    # Section 2
-                    # grid should be: N, D_\text{out}, H_\text{out}, W_\text{out}, 3, but your model is giving you N, C, D, H, W where C=3
-                    output_warp = output_warp.permute(0, 2, 3, 4, 1)
-                    warped_MRI = F.grid_sample(mri_batch.to(GPU_ID_M1), output_warp, mode="bilinear")     # ct_actual
-                    pseudo_lbl = F.grid_sample(labels_batch.to(GPU_ID_M1), output_warp, mode="bilinear")  # labels_batch
+                        # Section 2
+                        # grid should be: N, D_\text{out}, H_\text{out}, W_\text{out}, 3, but your model is giving you N, C, D, H, W where C=3
+                        output_warp = output_warp.permute(0, 2, 3, 4, 1)
+                        warped_MRI = F.grid_sample(mri_batch.to(GPU_ID_M1), output_warp, mode="bilinear")  # ct_actual
+                        pseudo_lbl = F.grid_sample(labels_batch.to(GPU_ID_M1), output_warp, mode="bilinear")  # labels_batch
 
-                    input = torch.cat((ct.to(GPU_ID_M1), warped_MRI), 1) #Attempt 1
-                    # input = torch.cat((ct, mri_batch), 1)  # Attempt 2
-                    with autocast(enabled=False):
+                        input = torch.cat((ct.to(GPU_ID_M1), warped_MRI), 1)  # Attempt 1
+                        # input = torch.cat((ct, mri_batch), 1)  # Attempt 2
+                        # with autocast(enabled=False):
                         output_mergeCTMR = modelM2(input.to(GPU_ID_M2))
                         output_ct = modelM0(output_mergeCTMR.to(GPU_ID_M0)).squeeze()
 
-                    loss, acc = criterion(output_ct, pseudo_lbl.squeeze().to(GPU_ID_M0))
+                        loss, acc = criterion(output_ct, pseudo_lbl.squeeze().to(GPU_ID_M0))
+                        # _, acc = criterion(output_ct, pseudo_lbl.squeeze().to(GPU_ID_M0)) # Compare between actual CT label with output_ct
+                        # loss = loss + loss from registration
 
                     # backward + optimize only if in training phase
                     if phase == 0:
-                        scaler.scale(loss).backward()
-                        scaler.step(optimizer)
-                        scaler.update()
+                        if autocast:
+                            scaler.scale(loss).backward()
+                            scaler.step(optimizer)
+                            scaler.update()
+                        else:
+                            loss.backward()
+                            optimizer.step()
 
-                        if epoch % 1 == 0 and log:
-                            mri = mri_batch.squeeze()[8:9, :, :]
-                            ct = ct.squeeze()[8:9, :, :]
-                            ctmri_merge = output_mergeCTMR.squeeze()[8:9, :, :].float().detach().cpu()
-                            ct_op = output_ct[8:9, :, :].detach().cpu().float()
-                            mri_lbl = labels_batch.squeeze()[8:9, :, :].detach().cpu()
-                            pseudo_gt = pseudo_lbl.squeeze()[8:9, :, :].detach().cpu()
+                        if epoch % 1 == 0 and log and idx == 0:
+                            temp = labels_batch.squeeze().detach().cpu()
+                            slice = 0
+                            for i in range(len(temp)):
+                                if temp[i].max() == 1:
+                                    slice = i
+                                    break
+                            mri = mri_batch.squeeze()[slice, :, :].unsqueeze(0)
+                            ct = ct.squeeze()[slice, :, :].unsqueeze(0)
+                            ctmri_merge = output_mergeCTMR.squeeze()[slice, :, :].unsqueeze(0).float().detach().cpu()
+                            ct_op = output_ct[slice, :, :].unsqueeze(0).detach().cpu().float()
+                            mri_lbl = labels_batch.squeeze()[slice, :, :].unsqueeze(0).detach().cpu()
+                            pseudo_gt = pseudo_lbl.squeeze()[slice, :, :].unsqueeze(0).detach().cpu()
                             ctmri_merge = (ctmri_merge - ctmri_merge.min()) / (ctmri_merge.max() - ctmri_merge.min())
                             ct_op = (ct_op - ct_op.min()) / (ct_op.max() - ct_op.min())
                             fig = saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt)
