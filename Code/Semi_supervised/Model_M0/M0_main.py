@@ -22,12 +22,12 @@ class Pipeline:
         self.batch_size = 1
 
         # Model Weights
-        self.modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/"
+        self.modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/"
         self.M0_model_path = self.modelPath + "M0.pth"
         self.M0_bw_path = self.modelPath + "M0_bw.pth"
 
         self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
-        self.logPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/UnifiedTraining/runs/Training/"
+        self.logPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/UnifiedTraining/runs/Training/"
         self.csv_file = "dataset_teacher.csv"
         self.transform_val = (32, 256, 256)
         self.num_epochs = 200
@@ -62,7 +62,7 @@ class Pipeline:
 
         dataloaders = [train_loader, validation_loader]
         train(dataloaders, self.M0_model_path, self.M0_bw_path, self.num_epochs, model, optimizer,
-              log=True, logPath=self.logPath)
+              log=False, logPath=self.logPath)
 
 
 obj = Pipeline()

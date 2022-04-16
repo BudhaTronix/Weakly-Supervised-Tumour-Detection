@@ -1,11 +1,11 @@
 import os
 import sys
-
 import torch
 import torch.optim as optim
-
-from dataloader import CustomDataset
-from train import train
+from pathlib import Path
+from model import *
+from losses import *
+from layers import *
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
@@ -19,22 +19,24 @@ print(ROOT_DIR)
 sys.path.insert(1, ROOT_DIR + "/")
 sys.path.insert(0, ROOT_DIR + "/")
 
+from Code.Semi_supervised.UnifiedTraining.dataloader import CustomDataset
+from Code.Semi_supervised.UnifiedTraining.train import train
+
 from Code.Utils.CSVGenerator import checkCSV_Student
 from Model.M0 import U_Net_M0
 
-from Model.M1 import U_Net_M1
+# from Model.M1 import U_Net_M1
 from Model.M1_UNET_DeepSup import U_Net_DeepSup
 
 from Model.M2_Conv import conv_block
 from Model.M2_UNET import U_Net_M2
 
 
-
 class Pipeline:
     def __init__(self):
         self.batch_size = 1
         # Model Weights
-        self.modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi-supervised/model_weights/"
+        self.modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/"
         self.M0_model_path = self.modelPath + "M0.pth"
         self.M0_bw_path = self.modelPath + "M0_bw.pth"
 
@@ -74,7 +76,7 @@ class Pipeline:
     @staticmethod
     def defineOptimizer(modelM1, modelM2):
         optimizer = optim.Adam((list(modelM1.parameters()) + list(modelM2.parameters())), lr=0.0001)
-        return optimizer             
+        return optimizer
 
     def trainModel(self):
         modelM0 = self.defineModelM0()
@@ -82,7 +84,8 @@ class Pipeline:
         modelM1 = self.defineModelM1()
         modelM2 = self.defineModelM2()
 
-        optimizer = self.defineOptimizer(modelM1, modelM2)
+        # optimizer = self.defineOptimizer(modelM1, modelM2)
+        optimizer = optim.Adam(modelM0.parameters(), lr=0.0001)
 
         checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
         dataset = CustomDataset(self.dataset_path, self.csv_file, self.transform_val)
@@ -91,7 +94,7 @@ class Pipeline:
         val_size = len(dataset) - train_size
 
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
-  
+
         # Training and Validation Section
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
         validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True)
