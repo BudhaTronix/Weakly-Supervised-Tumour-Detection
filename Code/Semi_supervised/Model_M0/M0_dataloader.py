@@ -42,8 +42,8 @@ class TeacherCustomDataset(Dataset):
         # Get label(class) of the image based on the cropped pandas column
         img_lbl = tio.ScalarImage(self.dataset_path + "gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
         np_frame = np.array(img_lbl)
-        np_frame[np_frame < 240] = 0
-        np_frame[np_frame >= 240] = 1
+        np_frame[(np_frame < 55) | (np_frame > 70)] = 0
+        np_frame[(np_frame >= 55) & (np_frame <= 70)] = 1
 
         img_lbl = torch.Tensor(np_frame.astype(np.float))
         lbl_transformed = self.transform(img_lbl).squeeze(0)

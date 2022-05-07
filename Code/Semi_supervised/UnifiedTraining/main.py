@@ -6,13 +6,13 @@ from pathlib import Path
 from model import *
 from losses import *
 from layers import *
+from Code.Semi_supervised.mscgunet.train import Mscgunet
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
 # os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 torch.set_num_threads(1)
-
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd())))
 print(ROOT_DIR)
@@ -24,12 +24,6 @@ from Code.Semi_supervised.UnifiedTraining.train import train
 
 from Code.Utils.CSVGenerator import checkCSV_Student
 from Model.M0 import U_Net_M0
-
-# from Model.M1 import U_Net_M1
-from Model.M1_UNET_DeepSup import U_Net_DeepSup
-
-from Model.M2_Conv import conv_block
-from Model.M2_UNET import U_Net_M2
 
 
 class Pipeline:
@@ -56,36 +50,39 @@ class Pipeline:
         self.scale_factor = 0.4
         self.transform_val = (32, 128, 128)
 
+        self.GPU_ID_M0 = "cuda:5"
+        self.GPU_ID_M1 = "cuda:5"
+
+        self.lr = 1e-4
+
     @staticmethod
     def defineModelM0():
         model = U_Net_M0()
         return model
 
     @staticmethod
-    def defineModelM1():
-        # model = U_Net_M1()
-        model = U_Net_DeepSup()
-        return model
+    def defineOptimizer(modelM0, modelM1):
+        optimizer = torch.optim.Adam(
+            list(modelM1.feature_extractor_training.parameters()) + list(modelM1.scg_training.parameters()) +
+            list(modelM1.upsampler1_training.parameters()) + list(modelM1.upsampler2_training.parameters()) +
+            list(modelM1.upsampler3_training.parameters()) + list(modelM1.upsampler4_training.parameters()) +
+            list(modelM1.upsampler5_training.parameters()) + list(modelM1.graph_layers1_training.parameters()) +
+            list(modelM1.graph_layers2_training.parameters()) + list(modelM1.conv_decoder1_training.parameters()) +
+            list(modelM1.conv_decoder2_training.parameters()) + list(modelM1.conv_decoder3_training.parameters()) +
+            list(modelM1.conv_decoder4_training.parameters()) + list(modelM1.conv_decoder5_training.parameters()) +
+            list(modelM1.conv_decoder6_training.parameters()) + list(modelM0.parameters()),
+            lr=modelM1.lr)
 
-    @staticmethod
-    def defineModelM2():
-        # model = conv_block()
-        model = U_Net_M2()
-        return model
-
-    @staticmethod
-    def defineOptimizer(modelM1, modelM2):
-        optimizer = optim.Adam((list(modelM1.parameters()) + list(modelM2.parameters())), lr=0.0001)
         return optimizer
 
     def trainModel(self):
         modelM0 = self.defineModelM0()
         modelM0.load_state_dict(torch.load(self.M0_model_path))
-        modelM1 = self.defineModelM1()
-        modelM2 = self.defineModelM2()
+        modelM0.to(self.GPU_ID_M0)
 
-        # optimizer = self.defineOptimizer(modelM1, modelM2)
-        optimizer = optim.Adam(modelM0.parameters(), lr=0.0001)
+        modelM1 = Mscgunet(device=self.GPU_ID_M1)
+
+        optimizer = self.defineOptimizer(modelM0, modelM1)
 
         checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
         dataset = CustomDataset(self.dataset_path, self.csv_file, self.transform_val)
@@ -102,8 +99,7 @@ class Pipeline:
         dataloaders = [train_loader, validation_loader]
 
         train(dataloaders, self.M1_model_path, self.M1_bw_path, self.M2_model_path, self.M2_bw_path,
-              self.num_epochs, modelM0, modelM1, modelM2,
-              optimizer, log=True, logPath=self.logPath)
+              self.num_epochs, modelM0, modelM1, optimizer, log=True, logPath=self.logPath)
 
 
 obj = Pipeline()
