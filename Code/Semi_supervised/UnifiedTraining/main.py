@@ -1,12 +1,7 @@
 import os
 import sys
-import torch
-import torch.optim as optim
-from pathlib import Path
-from model import *
-from losses import *
 from layers import *
-from Code.Semi_supervised.mscgunet.train import Mscgunet
+
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
@@ -19,6 +14,7 @@ print(ROOT_DIR)
 sys.path.insert(1, ROOT_DIR + "/")
 sys.path.insert(0, ROOT_DIR + "/")
 
+from Code.Semi_supervised.mscgunet.train import Mscgunet
 from Code.Semi_supervised.UnifiedTraining.dataloader import CustomDataset
 from Code.Semi_supervised.UnifiedTraining.train import train
 

@@ -48,6 +48,10 @@ class CustomDataset(Dataset):
         np_frame[(np_frame >= 55) & (np_frame <= 70)] = 1
         img_lbl = torch.Tensor(np_frame.astype(np.float))
 
+        # Open CT Labels
+        img_ct_lbl = tio.ScalarImage(self.dataset_path + "ct_gt/" + self.label_arr[index])[tio.DATA]
+        gt_ct_actualSize = self.normalize(img_ct_lbl)
+
         # Transform CT with size mentioned
         ct_transformed = f.interpolate(ct_actualSize.unsqueeze(0), size=self.transform_val) #optional, try without - Soumick
 
@@ -57,7 +61,10 @@ class CustomDataset(Dataset):
         # Transform MRI label with the size of CT
         lbl_transformed = f.interpolate(img_lbl.unsqueeze(0), size=ct_transformed.shape[2:])
 
-        return mri_transformed.squeeze(0), lbl_transformed.squeeze(0), ct_transformed.squeeze(0)
+        # Transform CT label with size mentioned
+        gt_ct_transformed = f.interpolate(gt_ct_actualSize.unsqueeze(0), size=self.transform_val)
+
+        return mri_transformed.squeeze(0), lbl_transformed.squeeze(0), ct_transformed.squeeze(0), gt_ct_transformed.squeeze(0)
 
     def __len__(self):
         return self.data_len

@@ -77,13 +77,19 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                         scaler.update()
 
                         if epoch % 5 == 0 and idx == store_idx and log:
+                            temp = labels_batch.squeeze().detach().cpu()
+                            slice = 0
+                            for i in range(len(temp)):
+                                if temp[i].max() == 1:
+                                    slice = i
+                                    break
                             # print("Storing images", idx, epoch)
-                            img = image_batch[:1, 14:15, :, :].squeeze(0).detach().cpu()
-                            lbl = labels_batch[:1, 14:15, :, :].squeeze(0).detach().cpu()
-                            op = outputs[0][:1, :1, 14:15, :, :].squeeze(0).squeeze(0).detach().cpu()
+                            img = image_batch.squeeze()[slice, :, :].unsqueeze(0)
+                            lbl = labels_batch.squeeze()[slice, :, :].unsqueeze(0)
+                            op = outputs.squeeze()[slice, :, :].unsqueeze(0).cpu().detach()
 
                             fig = saveImage(img, lbl, op)
-                            text = "Images"
+                            text = "Epoch : " + str(epoch)
                             writer.add_figure(text, fig, epoch)
 
                     # statistics
