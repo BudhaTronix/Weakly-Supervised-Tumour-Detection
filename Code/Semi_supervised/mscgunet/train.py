@@ -176,7 +176,8 @@ class Mscgunet:
         # ============================================= Y-X END ======================================================================
 
         cc_loss = self.similarity_loss(X, fully_warped_image_xy) + self.similarity_loss(Y, fully_warped_image_yx)
-        cc_loss_64 = self.similarity_loss(X_64, fully_warped_image_64_xy) + self.similarity_loss(Y_64, fully_warped_image_64_yx)
+        cc_loss_64 = self.similarity_loss(X_64, fully_warped_image_64_xy) + self.similarity_loss(Y_64,
+                                                                                                 )
         sm_loss = self.smoothness_loss.loss("", full_flow_xy) + self.smoothness_loss.loss("", full_flow_yx)
         sm_loss_64 = self.smoothness_loss.loss("", full_flow_64_xy) + self.smoothness_loss.loss("", full_flow_64_yx)
         scg_loss = scg_loss_xy + scg_loss_yx

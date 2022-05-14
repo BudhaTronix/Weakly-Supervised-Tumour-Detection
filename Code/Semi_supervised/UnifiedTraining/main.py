@@ -33,9 +33,6 @@ class Pipeline:
         self.M1_model_path = self.modelPath + "M1.pth"
         self.M1_bw_path = self.modelPath + "M1_bw.pth"
 
-        self.M2_model_path = self.modelPath + "M2.pth"
-        self.M2_bw_path = self.modelPath + "M2_bw.pth"
-
         self.train_split = .9
 
         self.csv_file = "dataset.csv"
