@@ -13,7 +13,7 @@ from Code.Utils.loss import DiceLoss
 torch.set_num_threads(1)
 scaler = GradScaler()
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
 
 def saveImage(img, lbl, op):
@@ -33,7 +33,7 @@ def saveImage(img, lbl, op):
 
 
 def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer,
-          log=False, logPath="", device="cuda:4"):
+          log=False, logPath="", device="cuda"):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = logPath + "{}".format(start_time)

@@ -1,7 +1,8 @@
-from model import *
-from losses import *
-from layers import *
+from .model import *
+from .losses import *
+from .layers import *
 import torch
+import os
 
 
 class Mscgunet:
@@ -49,8 +50,10 @@ class Mscgunet:
         self.conv_decoder5_training = convDecoder(16, 16).to(self.device)
         self.conv_decoder6_training = convDecoder(16, 3).to(self.device)
 
-        self.graph_layers1_training = GCN_Layer(32, 16, bnorm=True, activation=nn.LeakyReLU(0.2), dropout=0.1).to(self.device)
-        self.graph_layers2_training = GCN_Layer(16, 9, bnorm=True, activation=nn.LeakyReLU(0.2), dropout=0.1).to(self.device)
+        self.graph_layers1_training = GCN_Layer(32, 16, bnorm=True, activation=nn.LeakyReLU(0.2), dropout=0.1).to(
+            self.device)
+        self.graph_layers2_training = GCN_Layer(16, 9, bnorm=True, activation=nn.LeakyReLU(0.2), dropout=0.1).to(
+            self.device)
 
         self.stn_deformable = SpatialTransformer(size=(32, 128, 128), is_affine=False).to(self.device)
         self.stn_deformable_64 = SpatialTransformer(size=(16, 64, 64), is_affine=False).to(self.device)
@@ -60,6 +63,26 @@ class Mscgunet:
         for param in self.stn_deformable.parameters():
             param.requires_grad = False
             param.volatile = True
+
+    def initializeModel(self, model_dir):
+        # load previous checkpoints
+        checkpoint = torch.load(os.path.join(model_dir), map_location=self.device)
+
+        self.feature_extractor_training.load_state_dict(checkpoint['feature_extractor_training'])
+        self.scg_training.load_state_dict(checkpoint['scg_training'])
+
+        self.graph_layers1_training.load_state_dict(checkpoint['graph_layers1_training'])
+        self.graph_layers2_training.load_state_dict(checkpoint['graph_layers2_training'])
+
+        self.upsampler1_training.load_state_dict(checkpoint["upsampler1_training"])
+        self.upsampler2_training.load_state_dict(checkpoint["upsampler2_training"])
+        self.upsampler3_training.load_state_dict(checkpoint["upsampler3_training"])
+        self.upsampler4_training.load_state_dict(checkpoint["upsampler4_training"])
+        self.upsampler5_training.load_state_dict(checkpoint["upsampler5_training"])
+
+        self.conv_decoder1_training.load_state_dict(checkpoint["conv_decoder1_training"])
+        self.conv_decoder2_training.load_state_dict(checkpoint["conv_decoder2_training"])
+        self.conv_decoder3_training.load_state_dict(checkpoint["conv_decoder3_training"])
 
     def lossCal(self, CT, MRI, MRI_LBL):
         X = CT
@@ -176,8 +199,7 @@ class Mscgunet:
         # ============================================= Y-X END ======================================================================
 
         cc_loss = self.similarity_loss(X, fully_warped_image_xy) + self.similarity_loss(Y, fully_warped_image_yx)
-        cc_loss_64 = self.similarity_loss(X_64, fully_warped_image_64_xy) + self.similarity_loss(Y_64,
-                                                                                                 )
+        cc_loss_64 = self.similarity_loss(X_64, fully_warped_image_64_xy) + self.similarity_loss(Y_64, fully_warped_image_64_yx)
         sm_loss = self.smoothness_loss.loss("", full_flow_xy) + self.smoothness_loss.loss("", full_flow_yx)
         sm_loss_64 = self.smoothness_loss.loss("", full_flow_64_xy) + self.smoothness_loss.loss("", full_flow_64_yx)
         scg_loss = scg_loss_xy + scg_loss_yx
@@ -188,5 +210,3 @@ class Mscgunet:
         psuedo_lbl = self.stn_deformable(Ylbl, full_flow_xy)
 
         return total_loss, fully_warped_image_xy, psuedo_lbl
-
-

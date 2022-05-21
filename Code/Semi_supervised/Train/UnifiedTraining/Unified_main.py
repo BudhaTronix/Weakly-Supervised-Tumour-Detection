@@ -1,6 +1,6 @@
 import os
 import sys
-from layers import *
+import torch
 
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
@@ -15,30 +15,30 @@ sys.path.insert(1, ROOT_DIR + "/")
 sys.path.insert(0, ROOT_DIR + "/")
 
 from Code.Semi_supervised.mscgunet.train import Mscgunet
-from Code.Semi_supervised.UnifiedTraining.dataloader import CustomDataset
-from Code.Semi_supervised.UnifiedTraining.train import train
+from Code.Semi_supervised.Train.UnifiedTraining.dataloader import CustomDataset
+from Code.Semi_supervised.Train.UnifiedTraining.Unified_train import train
 
 from Code.Utils.CSVGenerator import checkCSV_Student
 from Model.M0 import U_Net_M0
 
 
 class Pipeline:
-    def __init__(self):
+    def __init__(self, train_type):
         self.batch_size = 1
         # Model Weights
         self.modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/"
-        self.M0_model_path = self.modelPath + "M0.pth"
-        self.M0_bw_path = self.modelPath + "M0_bw.pth"
+        self.M0_model_path = self.modelPath + "M0_" + train_type + ".pth"
+        self.M0_bw_path = self.modelPath + "M0_bw_" + train_type + ".pth"
 
-        self.M1_model_path = self.modelPath + "M1.pth"
-        self.M1_bw_path = self.modelPath + "M1_bw.pth"
+        self.M1_model_path = self.modelPath + "M1_" + train_type + ".pth"
+        self.M1_bw_path = self.modelPath + "M1_bw_" + train_type + ".pth"
 
         self.train_split = .9
 
         self.csv_file = "dataset.csv"
         self.num_epochs = 5000
         self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
-        self.logPath = "runs/Training/"
+        self.logPath = "runs/Training/" + train_type + "/"
 
         self.scale_factor = 0.4
         self.transform_val = (32, 128, 128)
@@ -91,8 +91,8 @@ class Pipeline:
 
         dataloaders = [train_loader, validation_loader]
 
-        train(dataloaders, self.M1_model_path, self.M1_bw_path, self.M2_model_path, self.M2_bw_path,
-              self.num_epochs, modelM0, modelM1, optimizer, log=True, logPath=self.logPath)
+        train(dataloaders, self.M1_model_path, self.M1_bw_path, self.M1_model_path, self.M1_bw_path,
+              self.num_epochs, modelM0, modelM1, optimizer, log=False, logPath=self.logPath)
 
 
 obj = Pipeline()

@@ -15,6 +15,8 @@ class TeacherCustomDataset(Dataset):
             dataset_path (string): path to the folder where images are
             transform: pytorch(torchIO) transforms for transforms and tensor conversion
         """
+        # Check if chaos
+        self.isChaos = False
         # Dataset Path
         self.dataset_path = dataset_path
         # CSV Path
@@ -32,7 +34,7 @@ class TeacherCustomDataset(Dataset):
 
     def __getitem__(self, index):
         # Open image
-        img = tio.ScalarImage(self.dataset_path + "images/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
+        img = tio.ScalarImage(self.dataset_path + "mri/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
         # Normalize the data
         img = (img - img.min()) / (img.max() - img.min())
 
@@ -40,12 +42,13 @@ class TeacherCustomDataset(Dataset):
         img_transformed = self.transform(img).squeeze(0)
 
         # Get label(class) of the image based on the cropped pandas column
-        img_lbl = tio.ScalarImage(self.dataset_path + "gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
-        np_frame = np.array(img_lbl)
-        np_frame[(np_frame < 55) | (np_frame > 70)] = 0
-        np_frame[(np_frame >= 55) & (np_frame <= 70)] = 1
+        img_lbl = tio.ScalarImage(self.dataset_path + "mri_gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
+        if self.isChaos:
+            np_frame = np.array(img_lbl)
+            np_frame[(np_frame < 55) | (np_frame > 70)] = 0
+            np_frame[(np_frame >= 55) & (np_frame <= 70)] = 1
 
-        img_lbl = torch.Tensor(np_frame.astype(np.float))
+            img_lbl = torch.Tensor(np_frame.astype(np.float))
         lbl_transformed = self.transform(img_lbl).squeeze(0)
 
         return img_transformed, lbl_transformed

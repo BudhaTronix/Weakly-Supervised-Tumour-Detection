@@ -25,6 +25,7 @@ torch.manual_seed(42)
 numpy.random.seed(seed=42)
 random.seed(42)
 
+
 def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt):
     # create grid of images
     figure = plt.figure(figsize=(10, 10))
@@ -57,8 +58,6 @@ def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt):
     plt.grid(False)
     plt.imshow(ct_op.permute(1, 2, 0).to(torch.float), cmap="gray")
 
-
-
     return figure
 
 
@@ -80,17 +79,16 @@ def saveModel(modelM1, path):
                 "conv_decoder6_training": modelM1.conv_decoder6_training.state_dict()}, path)
 
 
-def train(dataloaders, M0_model_path, M0_bw_path, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, optimizer, log=False, logPath=""):
+def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, optimizer, log=False, logPath=""):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = logPath + "{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
 
-    GPU_ID_M0 = "cuda:" + str(next(modelM0.parameters()).device.index)
+    # GPU_ID_M0 = "cuda:" + str(next(modelM0.parameters()).device.index)
+    GPU_ID_M0 = "cuda"
 
-    best_model_wts = ""
     best_acc = 0.0
-    best_val_loss_0 = 99999
     best_val_loss_1 = 99999
     since = time.time()
     criterion = DiceLoss()
@@ -98,16 +96,9 @@ def train(dataloaders, M0_model_path, M0_bw_path, M1_model_path, M1_bw_path, num
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
         print('-' * 10)
+        modelM0.eval()
         # Each epoch has a training and validation phase
         for phase in [0, 1]:
-            if phase == 0:
-                print("Model In Training mode")
-                modelM0.train()  # Set model to evaluate mode
-
-            else:
-                print("Model In Validation mode")
-                modelM0.eval()  # Set model to evaluate mode
-
             running_loss_0 = 0.0
             running_loss_1 = 0.0
             running_corrects = 0
@@ -127,17 +118,15 @@ def train(dataloaders, M0_model_path, M0_bw_path, M1_model_path, M1_bw_path, num
                         output_ct = modelM0(fully_warped_image_yx.to(GPU_ID_M0)).squeeze()
                         loss_0, _ = criterion(output_ct, pseudo_lbl.squeeze().to(GPU_ID_M0))
 
-                        total_loss = loss_0 + loss_1
-
                         _, acc_gt = criterion(ct_gt_batch.squeeze().to(GPU_ID_M0), pseudo_lbl.squeeze().to(GPU_ID_M0))
 
                     if phase == 0:
                         if autocast:
-                            scaler.scale(total_loss).backward()
+                            scaler.scale(loss_1).backward()
                             scaler.step(optimizer)
                             scaler.update()
                         else:
-                            total_loss.backward()
+                            loss_1.backward()
                             optimizer.step()
 
                     if epoch % 10 == 0 and log and idx == 0:
@@ -149,7 +138,8 @@ def train(dataloaders, M0_model_path, M0_bw_path, M1_model_path, M1_bw_path, num
                                 break
                         mri = mri_batch.squeeze()[slice, :, :].unsqueeze(0)
                         ct = ct_batch.squeeze()[slice, :, :].unsqueeze(0)
-                        ctmri_merge = fully_warped_image_yx.squeeze()[slice, :, :].unsqueeze(0).float().clone().detach().cpu()
+                        ctmri_merge = fully_warped_image_yx.squeeze()[slice, :, :].unsqueeze(
+                            0).float().clone().detach().cpu()
                         ct_op = output_ct[slice, :, :].unsqueeze(0).clone().detach().cpu().float()
                         mri_lbl = labels_batch.squeeze()[slice, :, :].unsqueeze(0).clone().detach().cpu()
                         pseudo_gt = pseudo_lbl.squeeze()[slice, :, :].unsqueeze(0).clone().detach().cpu()
@@ -189,10 +179,6 @@ def train(dataloaders, M0_model_path, M0_bw_path, M1_model_path, M1_bw_path, num
 
             # deep copy the model
             if phase == 1:
-                if epoch_loss_0 < best_val_loss_0:
-                    print("Saving the best model weights of Model 0")
-                    best_val_loss_0 = epoch_loss_0
-                    torch.save(modelM0.state_dict(), M0_bw_path)
                 if epoch_loss_1 < best_val_loss_1:
                     print("Saving the best model weights of Model 1")
                     best_val_loss_1 = epoch_loss_1
@@ -201,7 +187,6 @@ def train(dataloaders, M0_model_path, M0_bw_path, M1_model_path, M1_bw_path, num
         if epoch % 10 == 0:
             print("Saving the model")
             # save the models
-            torch.save(modelM0.state_dict(), M0_model_path)
             saveModel(modelM1, M1_model_path)
 
     time_elapsed = time.time() - since
@@ -210,5 +195,4 @@ def train(dataloaders, M0_model_path, M0_bw_path, M1_model_path, M1_bw_path, num
 
     # save the model
     print("Saving the models before exiting")
-    torch.save(modelM0.state_dict(), M0_model_path)
     saveModel(modelM1, M1_model_path)

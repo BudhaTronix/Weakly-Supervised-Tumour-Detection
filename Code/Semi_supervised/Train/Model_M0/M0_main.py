@@ -4,8 +4,8 @@ import torch
 import torch.optim as optim
 import torchio as tio
 
-from M0_dataloader import TeacherCustomDataset
-from M0_train import train
+from Code.Semi_supervised.Train.Model_M0.M0_dataloader import TeacherCustomDataset
+from Code.Semi_supervised.Train.Model_M0.M0_train import train
 from Model.M0 import U_Net_M0
 
 torch.set_num_threads(1)
@@ -17,20 +17,20 @@ except ImportError:
     from CSVGenerator import checkCSV
 
 
-class Pipeline:
-    def __init__(self):
+class M0_Pipeline:
+    def __init__(self, train_type, epochs):
         self.batch_size = 1
 
         # Model Weights
         self.modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/"
-        self.M0_model_path = self.modelPath + "M0.pth"
-        self.M0_bw_path = self.modelPath + "M0_bw.pth"
+        self.M0_model_path = self.modelPath + "M0_" + train_type + ".pth"
+        self.M0_bw_path = self.modelPath + "M0_bw_" + train_type + ".pth"
 
-        self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
-        self.logPath = "runs/Training/"
+        self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/Clinical/"
+        self.logPath = "runs/Training/" + train_type + "/"
         self.csv_file = "dataset_teacher.csv"
         self.transform_val = (32, 256, 256)
-        self.num_epochs = 200
+        self.num_epochs = epochs
 
     @staticmethod
     def defineModel():
@@ -63,7 +63,3 @@ class Pipeline:
         dataloaders = [train_loader, validation_loader]
         train(dataloaders, self.M0_model_path, self.M0_bw_path, self.num_epochs, model, optimizer,
               log=True, logPath=self.logPath)
-
-
-obj = Pipeline()
-obj.trainModel()
