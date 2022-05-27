@@ -6,7 +6,7 @@ import torchio as tio
 from torchvision import transforms
 
 from Code.Utils.loss import DiceLoss
-from Model.unet import U_Net
+from Model.M0 import U_Net_M0
 from dataloader import CustomDataset
 from train import train
 
@@ -22,7 +22,7 @@ os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
 
 def defineModel():
     # Define Model
-    model = U_Net()
+    model = U_Net_M0()
     return model
 
 

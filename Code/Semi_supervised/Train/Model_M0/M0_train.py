@@ -32,8 +32,8 @@ def saveImage(img, lbl, op):
     return figure
 
 
-def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer,
-          log=False, logPath="", device="cuda"):
+def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer,device="cuda",
+          log=False, logPath=""):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = logPath + "{}".format(start_time)

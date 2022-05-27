@@ -26,7 +26,7 @@ numpy.random.seed(seed=42)
 random.seed(42)
 
 
-def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt):
+def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt=None, isChaos=False):
     # create grid of images
     figure = plt.figure(figsize=(10, 10))
 
@@ -46,10 +46,6 @@ def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt):
     plt.grid(False)
     plt.imshow(mri_lbl.permute(1, 2, 0).to(torch.float), cmap="gray")
 
-    plt.subplot(335, title="CT LBL")
-    plt.grid(False)
-    plt.imshow(ct_gt.permute(1, 2, 0).to(torch.float), cmap="gray")
-
     plt.subplot(336, title="Pseudo CT LBL")
     plt.grid(False)
     plt.imshow(pseudo_gt.permute(1, 2, 0), cmap="gray")
@@ -58,8 +54,12 @@ def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt):
     plt.grid(False)
     plt.imshow(ct_op.permute(1, 2, 0).to(torch.float), cmap="gray")
 
-    return figure
+    if isChaos:
+        plt.subplot(335, title="CT LBL")
+        plt.grid(False)
+        plt.imshow(ct_gt.permute(1, 2, 0).to(torch.float), cmap="gray")
 
+    return figure
 
 def saveModel(modelM1, path):
     torch.save({"feature_extractor_training": modelM1.feature_extractor_training.state_dict(),
@@ -79,14 +79,13 @@ def saveModel(modelM1, path):
                 "conv_decoder6_training": modelM1.conv_decoder6_training.state_dict()}, path)
 
 
-def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, optimizer, log=False, logPath=""):
+def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, optimizer, isChaos,
+          isUnifiedTraining,GPU_ID, log=False, logPath=""):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = logPath + "{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
 
-    # GPU_ID_M0 = "cuda:" + str(next(modelM0.parameters()).device.index)
-    GPU_ID_M0 = "cuda"
 
     best_acc = 0.0
     best_val_loss_1 = 99999
@@ -96,9 +95,15 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
         print('-' * 10)
-        modelM0.eval()
         # Each epoch has a training and validation phase
         for phase in [0, 1]:
+            if phase == 0 and isUnifiedTraining:
+                print("Model 0 In Training mode")
+                modelM0.train()  # Set model to evaluate mode
+
+            else:
+                print("Model 0 In Validation mode")
+                modelM0.eval()  # Set model to evaluate mode
             running_loss_0 = 0.0
             running_loss_1 = 0.0
             running_corrects = 0
@@ -107,7 +112,10 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
             for batch in tqdm(dataloaders[phase]):
 
                 # Get Data
-                mri_batch, labels_batch, ct_batch, ct_gt_batch = batch
+                if isChaos:
+                    mri_batch, labels_batch, ct_batch, ct_gt_batch = batch
+                else:
+                    mri_batch, labels_batch, ct_batch = batch
 
                 optimizer.zero_grad()
 
@@ -115,18 +123,25 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                     with autocast(enabled=False):
                         loss_1, fully_warped_image_yx, pseudo_lbl = modelM1.lossCal(ct_batch, mri_batch, labels_batch)
 
-                        output_ct = modelM0(fully_warped_image_yx.to(GPU_ID_M0)).squeeze()
-                        loss_0, _ = criterion(output_ct, pseudo_lbl.squeeze().to(GPU_ID_M0))
+                        output_ct = modelM0(fully_warped_image_yx.to(GPU_ID)).squeeze()
+                        loss_0, _ = criterion(output_ct, pseudo_lbl.squeeze().to(GPU_ID))
 
-                        _, acc_gt = criterion(ct_gt_batch.squeeze().to(GPU_ID_M0), pseudo_lbl.squeeze().to(GPU_ID_M0))
+                        if isUnifiedTraining:
+                            total_loss = loss_0 + loss_1
+                        else:
+                            total_loss = loss_1
+
+                        if isChaos:
+                            _, acc_gt = criterion(ct_gt_batch.squeeze().to(GPU_ID),
+                                                  pseudo_lbl.squeeze().to(GPU_ID))
 
                     if phase == 0:
                         if autocast:
-                            scaler.scale(loss_1).backward()
+                            scaler.scale(total_loss).backward()
                             scaler.step(optimizer)
                             scaler.update()
                         else:
-                            loss_1.backward()
+                            total_loss.backward()
                             optimizer.step()
 
                     if epoch % 10 == 0 and log and idx == 0:
@@ -143,12 +158,15 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                         ct_op = output_ct[slice, :, :].unsqueeze(0).clone().detach().cpu().float()
                         mri_lbl = labels_batch.squeeze()[slice, :, :].unsqueeze(0).clone().detach().cpu()
                         pseudo_gt = pseudo_lbl.squeeze()[slice, :, :].unsqueeze(0).clone().detach().cpu()
-                        ct_gt = ct_gt_batch.squeeze()[slice, :, :].unsqueeze(0)
 
                         ctmri_merge = (ctmri_merge - ctmri_merge.min()) / (ctmri_merge.max() - ctmri_merge.min())
                         ct_op = (ct_op - ct_op.min()) / (ct_op.max() - ct_op.min())
 
-                        fig = saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt)
+                        if isChaos:
+                            ct_gt = ct_gt_batch.squeeze()[slice, :, :].unsqueeze(0)
+                            fig = saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt, isChaos)
+                        else:
+                            fig = saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt)
                         text = "Images on - " + str(epoch) + " Phase : " + str(phase)
                         writer.add_figure(text, fig, epoch)
 
@@ -156,24 +174,28 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                     running_loss_0 += loss_0.item()
                     running_loss_1 += loss_1.item()
 
-                    running_corrects += acc_gt.item()
+                    if isChaos:
+                        running_corrects += acc_gt.item()
                     idx += 1
 
             epoch_loss_0 = running_loss_0 / len(dataloaders[phase])
             epoch_loss_1 = running_loss_1 / len(dataloaders[phase])
-            epoch_acc_gt = running_corrects / len(dataloaders[phase])
+            if isChaos:
+                epoch_acc_gt = running_corrects / len(dataloaders[phase])
             if phase == 0:
                 mode = "Train"
                 if log:
                     writer.add_scalar("Train/Loss_0", epoch_loss_0, epoch)
                     writer.add_scalar("Train/Loss_1", epoch_loss_1, epoch)
-                    writer.add_scalar("Train/Acc_GT", epoch_acc_gt, epoch)
+                    if isChaos:
+                        writer.add_scalar("Train/Acc_GT", epoch_acc_gt, epoch)
             else:
                 mode = "Val"
                 if log:
                     writer.add_scalar("Validation/Loss_0", epoch_loss_0, epoch)
                     writer.add_scalar("Validation/Loss_1", epoch_loss_1, epoch)
-                    writer.add_scalar("Validation/Acc_GT", epoch_acc_gt, epoch)
+                    if isChaos:
+                        writer.add_scalar("Validation/Acc_GT", epoch_acc_gt, epoch)
 
             print('{} Loss_0: {:.4f} Loss_1: {:.4f}'.format(mode, epoch_loss_0, epoch_loss_1))
 

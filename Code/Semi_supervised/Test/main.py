@@ -14,14 +14,14 @@ sys.path.insert(1, ROOT_DIR + "/")
 sys.path.insert(0, ROOT_DIR + "/")
 
 from Code.Semi_supervised.mscgunet.train import Mscgunet
-from Code.Semi_supervised.Train.UnifiedTraining.dataloader import CustomDataset
+from Code.Semi_supervised.Test.UnifiedTraining.dataloader import CustomDataset
 from Code.Semi_supervised.Test.test import test
 from Code.Utils.CSVGenerator import checkCSV_Student
 from Model.M0 import U_Net_M0
 
 
 class Pipeline:
-    def __init__(self):
+    def __init__(self, device):
         self.batch_size = 1
         # Model Weights
         self.modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/"
@@ -41,8 +41,7 @@ class Pipeline:
         self.scale_factor = 0.4
         self.transform_val = (32, 128, 128)
 
-        self.GPU_ID_M0 = "cuda"
-        self.GPU_ID_M1 = "cuda"
+        self.device = device
 
         self.lr = 1e-4
 
@@ -55,9 +54,9 @@ class Pipeline:
         print("Loading Models")
         modelM0 = self.defineModelM0()
         modelM0.load_state_dict(torch.load(self.M0_model_path))
-        modelM0.to(self.GPU_ID_M0)
+        modelM0.to(self.device)
 
-        modelM1 = Mscgunet(device=self.GPU_ID_M1)
+        modelM1 = Mscgunet(device=self.device)
         modelM1.initializeModel(self.M1_model_path)
 
         print("Models Loaded")

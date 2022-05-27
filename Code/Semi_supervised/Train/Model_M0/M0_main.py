@@ -18,19 +18,19 @@ except ImportError:
 
 
 class M0_Pipeline:
-    def __init__(self, train_type, epochs):
+    def __init__(self, dataset_path, M0_model_path, M0_bw_path, device="cuda", log_path="runs/Training/", epochs=100):
         self.batch_size = 1
 
         # Model Weights
-        self.modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/"
-        self.M0_model_path = self.modelPath + "M0_" + train_type + ".pth"
-        self.M0_bw_path = self.modelPath + "M0_bw_" + train_type + ".pth"
+        self.M0_model_path = M0_model_path
+        self.M0_bw_path = M0_bw_path
 
-        self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/Clinical/"
-        self.logPath = "runs/Training/" + train_type + "/"
+        self.dataset_path = dataset_path
+        self.logPath = log_path + "_Model_M0/"
         self.csv_file = "dataset_teacher.csv"
         self.transform_val = (32, 256, 256)
         self.num_epochs = epochs
+        self.device = device
 
     @staticmethod
     def defineModel():
@@ -42,7 +42,19 @@ class M0_Pipeline:
         optimizer = optim.Adam(model.parameters(), lr=0.001)
         return optimizer
 
-    def trainModel(self):
+    def displayDetails(self, logging):
+        print("\n" + "#"*150)
+        print("Logging Path     : ", self.logPath)
+        print("Model M0 Path    : ", self.M0_model_path)
+        print("Model M0 BW Path : ", self.M0_bw_path)
+        print("Device           : ", self.device)
+        print("Logging Enabled  : ", logging)
+        print("Epochs total     : ", self.num_epochs)
+        print("#" * 150 + "\n")
+
+    def trainModel(self, logging):
+        self.displayDetails(logging)
+
         model = self.defineModel()
         optimizer = self.defineOptimizer(model)
 
@@ -61,5 +73,5 @@ class M0_Pipeline:
         validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True)
 
         dataloaders = [train_loader, validation_loader]
-        train(dataloaders, self.M0_model_path, self.M0_bw_path, self.num_epochs, model, optimizer,
-              log=True, logPath=self.logPath)
+        train(dataloaders, self.M0_model_path, self.M0_bw_path, self.num_epochs, model, optimizer, self.device,
+              log=logging, logPath=self.logPath)
