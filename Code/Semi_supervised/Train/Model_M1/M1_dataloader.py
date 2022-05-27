@@ -76,12 +76,12 @@ class CustomDataset(Dataset):
             ct_gt_transformed = f.interpolate(gt_ct_actualSize.unsqueeze(0), size=self.transform_val)
 
             return mri_transformed.squeeze(0), mri_gt_transformed.squeeze(0), ct_transformed.squeeze(
-                0), ct_gt_transformed.squeeze(0)
+                0), ct_gt_transformed.squeeze(0), index
         else:
             # Transform MRI label with the size of CT
             lbl_transformed = f.interpolate(mri_gt.unsqueeze(0), size=ct_transformed.shape[2:])
 
-            return mri_transformed.squeeze(0), lbl_transformed.squeeze(0), ct_transformed.squeeze(0)
+            return mri_transformed.squeeze(0), lbl_transformed.squeeze(0), ct_transformed.squeeze(0), index
 
     def __len__(self):
         return self.data_len

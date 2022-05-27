@@ -1,6 +1,7 @@
 import os
 import sys
 import torch
+import logging
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
@@ -14,63 +15,69 @@ sys.path.insert(1, ROOT_DIR + "/")
 sys.path.insert(0, ROOT_DIR + "/")
 
 from Code.Semi_supervised.mscgunet.train import Mscgunet
-from Code.Semi_supervised.Test.UnifiedTraining.dataloader import CustomDataset
+from Code.Semi_supervised.Train.Model_M1.M1_dataloader import CustomDataset
 from Code.Semi_supervised.Test.test import test
 from Code.Utils.CSVGenerator import checkCSV_Student
 from Model.M0 import U_Net_M0
 
 
-class Pipeline:
-    def __init__(self, device):
-        self.batch_size = 1
+class Test_Pipeline:
+    def __init__(self, M0_model_path, M0_bw_path, M1_model_path, M1_bw_path, dataset_path, logPath, device):
         # Model Weights
-        self.modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/"
-        self.M0_model_path = self.modelPath + "M0.pth"
-        self.M0_bw_path = self.modelPath + "M0_bw.pth"
+        self.M0_model_path = M0_model_path
+        self.M0_bw_path = M0_bw_path
+        self.M1_model_path = M1_model_path
+        self.M1_bw_path = M1_bw_path
+        self.logPath = logPath + "_Test/"
 
-        self.M1_model_path = self.modelPath + "M2.pth"
-        self.M1_bw_path = self.modelPath + "M2_bw.pth"
-
-        self.train_split = .9
+        self.batch_size = 1
+        self.lr = 1e-4
 
         self.csv_file = "dataset.csv"
-        self.num_epochs = 5000
-        self.dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
-        self.logPath = "runs/Training/"
+
+        self.dataset_path = dataset_path
 
         self.scale_factor = 0.4
         self.transform_val = (32, 128, 128)
+        self.ct_level = 50
+        self.ct_window = 350
 
         self.device = device
-
-        self.lr = 1e-4
+        self.isChaos = True
 
     @staticmethod
     def defineModelM0():
         model = U_Net_M0()
         return model
 
-    def testModel(self):
-        print("Loading Models")
+    def displayDetails(self, logger):
+        logging.info("\n\n\n")
+        logging.info("############################# START Model Testing #############################")
+        logging.info("Logging Path     : " + self.logPath)
+        logging.info("Model M0 Path    : " + self.M0_model_path)
+        logging.info("Model M0 BW Path : " + self.M0_bw_path)
+        logging.info("Model M1 Path    : " + self.M1_model_path)
+        logging.info("Model M1 BW Path : " + self.M1_bw_path)
+        logging.info("Device           : " + str(self.device))
+        logging.info("Logging Enabled  : " + str(logger))
+
+    def testModel(self, test_loader=None, logger=False):
+        self.displayDetails(logger)
+
+        logging.debug("Loading Models for Testing")
         modelM0 = self.defineModelM0()
         modelM0.load_state_dict(torch.load(self.M0_model_path))
         modelM0.to(self.device)
 
         modelM1 = Mscgunet(device=self.device)
         modelM1.initializeModel(self.M1_model_path)
+        logging.debug("Models Loaded")
 
-        print("Models Loaded")
+        if test_loader is None:
+            checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
+            test_dataset = CustomDataset(self.dataset_path, self.csv_file, self.transform_val,
+                                         self.isChaos, self.ct_level, self.ct_window)
+            # Training and Validation Section
+            test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=True)
 
-        checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
-        test_dataset = CustomDataset(self.dataset_path, self.csv_file, self.transform_val)
-
-        print("Entering testing!")
-
-        # Training and Validation Section
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=True)
-
-        test(test_loader, modelM0, modelM1, log=False, logPath=self.logPath)
-
-
-obj = Pipeline()
-obj.testModel()
+        test(test_loader, modelM0, modelM1, logPath=self.logPath)

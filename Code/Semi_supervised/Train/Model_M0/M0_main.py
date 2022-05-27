@@ -1,5 +1,5 @@
 import sys
-
+import logging
 import torch
 import torch.optim as optim
 import torchio as tio
@@ -42,18 +42,19 @@ class M0_Pipeline:
         optimizer = optim.Adam(model.parameters(), lr=0.001)
         return optimizer
 
-    def displayDetails(self, logging):
-        print("\n" + "#"*150)
-        print("Logging Path     : ", self.logPath)
-        print("Model M0 Path    : ", self.M0_model_path)
-        print("Model M0 BW Path : ", self.M0_bw_path)
-        print("Device           : ", self.device)
-        print("Logging Enabled  : ", logging)
-        print("Epochs total     : ", self.num_epochs)
-        print("#" * 150 + "\n")
+    def displayDetails(self, logger):
+        logging.info("############################# START M0 Model Training #############################")
+        logging.info("Starting with Model M0 Training")
+        logging.info("Logging Path     : " + self.logPath)
+        logging.info("Model M0 Path    : " + self.M0_model_path)
+        logging.info("Model M0 BW Path : " + self.M0_bw_path)
+        logging.info("Device           : " + str(self.device))
+        logging.info("Logging Enabled  : " + str(logger))
+        logging.info("Epochs total     : " + str(self.num_epochs))
 
-    def trainModel(self, logging):
-        self.displayDetails(logging)
+
+    def trainModel(self, logger):
+        self.displayDetails(logger)
 
         model = self.defineModel()
         optimizer = self.defineOptimizer(model)

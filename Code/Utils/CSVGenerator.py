@@ -1,5 +1,6 @@
 import csv
 import os
+import logging
 from pathlib import Path
 
 from tqdm import tqdm
@@ -10,11 +11,11 @@ def checkCSV(dataset_Path, csv_FileName, overwrite=False):
         if os.path.isfile(dataset_Path + csv_FileName):
             os.remove(dataset_Path + csv_FileName)
     if not os.path.isfile(dataset_Path + csv_FileName):
-        print(" CSV File missing..\nGenerating new CVS File..")
+        logging.info(" CSV File missing..Generating new CVS File..")
         GenerateCSV(dataset_Path=dataset_Path, csv_FileName=csv_FileName)
-        print(" CSV File Created!")
+        logging.info(" CSV File Created!")
     else:
-        print("\n Dataset file available")
+        logging.info("\n Dataset file available")
 
 
 def GenerateCSV(dataset_Path, csv_FileName):
@@ -34,11 +35,11 @@ def checkCSV_Student(dataset_Path, csv_FileName, overwrite=False):
         if os.path.isfile(dataset_Path + csv_FileName):
             os.remove(dataset_Path + csv_FileName)
     if not os.path.isfile(dataset_Path + csv_FileName):
-        print(" CSV File missing..\nGenerating new CVS File..")
+        logging.info(" CSV File missing..Generating new CVS File..")
         GenerateCSV_Student(dataset_Path=dataset_Path, csv_FileName=csv_FileName)
-        print(" CSV File Created!")
+        logging.info(" CSV File Created!")
     else:
-        print("\n Dataset file available")
+        logging.info("\n Dataset file available")
 
 
 def GenerateCSV_Student(dataset_Path, csv_FileName):

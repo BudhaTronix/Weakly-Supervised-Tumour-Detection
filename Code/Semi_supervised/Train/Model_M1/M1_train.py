@@ -3,6 +3,7 @@ import sys
 import time
 import random
 import numpy
+import logging
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -13,17 +14,15 @@ from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd())))
-print(ROOT_DIR)
-sys.path.insert(1, ROOT_DIR + "/")
 from Code.Utils.loss import DiceLoss
 
 scaler = GradScaler()
 
-torch.cuda.manual_seed(42)
-torch.manual_seed(42)
-numpy.random.seed(seed=42)
-random.seed(42)
+
+# torch.cuda.manual_seed(42)
+# torch.manual_seed(42)
+# numpy.random.seed(seed=42)
+# random.seed(42)
 
 
 def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt=None, isChaos=False):
@@ -80,18 +79,19 @@ def saveModel(modelM1, path):
 
 
 def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, optimizer, isChaos,
-          isUnifiedTraining,GPU_ID, log=False, logPath=""):
+          isUnifiedTraining,GPU_ID, log=False, logPath="", M0_model_path=None, M0_bw_path=None):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = logPath + "{}".format(start_time)
         writer = SummaryWriter(TBLOGDIR)
-
-
+        logging.info("Tensorboard path : " + str(TBLOGDIR))
     best_acc = 0.0
+    best_val_loss_0 = 99999
     best_val_loss_1 = 99999
     since = time.time()
     criterion = DiceLoss()
-    print("Before Training")
+    ids_train = []
+    ids_val = []
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
         print('-' * 10)
@@ -100,7 +100,6 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
             if phase == 0 and isUnifiedTraining:
                 print("Model 0 In Training mode")
                 modelM0.train()  # Set model to evaluate mode
-
             else:
                 print("Model 0 In Validation mode")
                 modelM0.eval()  # Set model to evaluate mode
@@ -113,9 +112,15 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
 
                 # Get Data
                 if isChaos:
-                    mri_batch, labels_batch, ct_batch, ct_gt_batch = batch
+                    mri_batch, labels_batch, ct_batch, ct_gt_batch, id = batch
                 else:
-                    mri_batch, labels_batch, ct_batch = batch
+                    mri_batch, labels_batch, ct_batch, id = batch
+
+                if epoch == 0:
+                    if phase == 0:
+                        ids_train.append(id.item())
+                    else:
+                        ids_val.append(id.item())
 
                 optimizer.zero_grad()
 
@@ -197,24 +202,37 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                     if isChaos:
                         writer.add_scalar("Validation/Acc_GT", epoch_acc_gt, epoch)
 
-            print('{} Loss_0: {:.4f} Loss_1: {:.4f}'.format(mode, epoch_loss_0, epoch_loss_1))
+            logging.info('Epoch: {} Mode: {} Loss_0: {:.4f} Loss_1: {:.4f}'.format(epoch, mode, epoch_loss_0, epoch_loss_1))
 
             # deep copy the model
             if phase == 1:
+                if epoch_loss_0 < best_val_loss_0 and isUnifiedTraining:
+                    logging.info("Saving the best model weights of Model 0")
+                    best_val_loss_0 = epoch_loss_0
+                    torch.save(modelM0.state_dict(), M0_bw_path)
                 if epoch_loss_1 < best_val_loss_1:
-                    print("Saving the best model weights of Model 1")
+                    logging.info("Saving the best model weights of Model 1")
                     best_val_loss_1 = epoch_loss_1
                     saveModel(modelM1, M1_bw_path)
 
         if epoch % 10 == 0:
-            print("Saving the model")
+            logging.info("Saving the model")
             # save the models
             saveModel(modelM1, M1_model_path)
+            if isUnifiedTraining:
+                torch.save(modelM0.state_dict(), M0_model_path)
 
     time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
+    logging.info('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    logging.info('Best val Acc: {:4f}'.format(best_acc))
 
     # save the model
-    print("Saving the models before exiting")
+    logging.info("Saving the models before exiting")
     saveModel(modelM1, M1_model_path)
+    if isUnifiedTraining:
+        torch.save(modelM0.state_dict(), M0_model_path)
+
+    logging.info("IDs used in training   : " + str(ids_train))
+    logging.info("IDs used in validation : " + str(ids_val))
+
+    logging.info("############################# END M1 Model Training #############################")

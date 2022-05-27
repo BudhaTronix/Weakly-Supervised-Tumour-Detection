@@ -1,6 +1,7 @@
 import os
 import sys
 import torch
+import logging
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
@@ -9,7 +10,6 @@ os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
 torch.set_num_threads(1)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd()))))
-print(ROOT_DIR)
 sys.path.insert(1, ROOT_DIR + "/")
 sys.path.insert(0, ROOT_DIR + "/")
 
@@ -26,7 +26,8 @@ class M1_Pipeline:
         self.M1_model_path = M1_model_path
         self.M1_bw_path = M1_bw_path
 
-        self.train_split = .9
+        self.train_split = 0.8
+        self.test_split = 0.15
         self.batch_size = 1
         self.lr = 1e-4
 
@@ -72,17 +73,46 @@ class M1_Pipeline:
             list(modelM1.conv_decoder6_training.parameters()), lr=modelM1.lr)
         return optimizer
 
-    def displayDetails(self, logging):
-        print("\n" + "#"*150)
-        print("Logging Path     : ", self.logPath)
-        print("Model M1 Path    : ", self.M1_model_path)
-        print("Model M1 BW Path : ", self.M1_bw_path)
-        print("Device           : ", self.device)
-        print("Logging Enabled  : ", logging)
-        print("Epochs total     : ", self.num_epochs)
-        print("#" * 150 + "\n")
+    def displayDetails(self, logger):
 
-    def trainModel(self, modelM0, logging):
+        logging.info("Logging Path     : " + self.logPath)
+        logging.info("Model M1 Path    : " + self.M1_model_path)
+        logging.info("Model M1 BW Path : " + self.M1_bw_path)
+        logging.info("Device           : " + self.device)
+        logging.info("Logging Enabled  : " + str(logger))
+        logging.info("Epochs total     : " + str(self.num_epochs))
+
+    def train_val_test_slit(self):
+        logging.info("\n\n\n")
+        if self.isUnified:
+            logging.info("########################### START Unified M1 + M0 Model Training ###########################")
+        else:
+            logging.info("########################### START M1 Model Training ###########################")
+        # Check dataset csv file
+        checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
+        dataset = CustomDataset(self.dataset_path, self.csv_file, self.transform_val,
+                                self.isChaos, self.ct_level, self.ct_window)
+
+        # Train-Test Split
+        train_size = int(self.train_split * len(dataset))
+        test_size = int(self.test_split * len(dataset))
+        val_size = len(dataset) - train_size - test_size
+
+        logging.info("Train Subjects      : " + str(train_size))
+        logging.info("Validation Subjects : " + str(val_size))
+        logging.info("Test Subjects       : " + str(test_size))
+
+        train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset,
+                                                                                 [train_size, val_size, test_size])
+
+        # Training and Validation Section
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+        validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=True)
+
+        return train_loader, validation_loader, test_loader
+
+    def trainModel(self, modelM0, dataloaders, logging, M0_model_path=None, M0_bw_path=None):
         self.displayDetails(logging)
         # Initialize Model M1
         modelM1 = Mscgunet(device=self.device)
@@ -93,24 +123,9 @@ class M1_Pipeline:
         else:
             optimizer = self.defineOptimizer(modelM1)
 
-        # Check dataset csv file
-        checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
-        dataset = CustomDataset(self.dataset_path, self.csv_file, self.transform_val,
-                                self.isChaos, self.ct_level, self.ct_window)
-
-        # Train-Test Split
-        train_size = int(self.train_split * len(dataset))
-        val_size = len(dataset) - train_size
-
-        train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
-
-        # Training and Validation Section
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
-        validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True)
-
-        dataloaders = [train_loader, validation_loader]
-
         train(dataloaders, self.M1_model_path, self.M1_bw_path, self.num_epochs, modelM0, modelM1, optimizer,
               self.isChaos, self.isUnified, self.device,
               log=logging,
-              logPath=self.logPath)
+              logPath=self.logPath,
+              M0_model_path=M0_model_path,
+              M0_bw_path=M0_bw_path)

@@ -1,7 +1,6 @@
-import os
 import time
 from datetime import datetime
-
+import logging
 import matplotlib.pyplot as plt
 import torch
 from torch.cuda.amp import autocast, GradScaler
@@ -12,9 +11,6 @@ from Code.Utils.loss import DiceLoss
 
 torch.set_num_threads(1)
 scaler = GradScaler()
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
-
 
 def saveImage(img, lbl, op):
     # create grid of images
@@ -110,24 +106,26 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                     writer.add_scalar("Loss/Validation", epoch_loss, epoch)
                     writer.add_scalar("Acc/Validation", epoch_acc, epoch)
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(mode, epoch_loss, epoch_acc))
+            logging.info('Epoch: {} Mode: {} Loss: {:.4f} Acc: {:.4f}'.format(epoch, mode, epoch_loss, epoch_acc))
 
             # deep copy the model
             if phase == 1 and (epoch_acc > best_acc or epoch_loss < best_val_loss):
-                print("Saving the best model weights")
+                logging.info("Saving the best model weights of M0")
                 best_val_loss = epoch_loss
                 best_acc = epoch_acc
                 torch.save(model.state_dict(), modelPath_bestweight)
 
         # save the model weights after an interval
         if epoch % 10 == 0:
-            print("Saving the model weights")
+            logging.info("Saving M0 model weights")
             torch.save(model.state_dict(), modelPath)
 
     time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
+    logging.info('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    logging.info('Best val Acc: {:4f}'.format(best_acc))
 
     # save the model
-    print("Saving the model weights before exiting")
+    logging.info("Saving M0 model weights before exiting")
     torch.save(model.state_dict(), modelPath)
+
+    logging.info("############################# END M0 Model Training #############################")
