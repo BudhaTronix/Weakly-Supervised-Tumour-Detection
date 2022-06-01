@@ -21,7 +21,7 @@ from Code.Semi_supervised.Test.main import Test_Pipeline
 
 
 class Pipeline:
-    def __init__(self, dataset_path, modelWeights_path, log_path, dataset_type, isUnified, device):
+    def __init__(self, dataset_path, modelWeights_path, log_path, dataset_type, isUnified, device, seed_value):
         self.dataset_type = dataset_type
 
         if self.dataset_type == "chaos":
@@ -49,6 +49,8 @@ class Pipeline:
         self.logPath = log_path + "runs/" + self.temp_model_train_type
 
         self.device = device
+
+        self.seed_value = seed_value
 
         self.isUnified = isUnified
 

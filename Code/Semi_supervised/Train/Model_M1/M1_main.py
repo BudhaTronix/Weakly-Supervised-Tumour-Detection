@@ -1,5 +1,6 @@
 import os
 import sys
+import numpy as np
 import torch
 import logging
 
@@ -102,8 +103,11 @@ class M1_Pipeline:
         logging.info("Validation Subjects : " + str(val_size))
         logging.info("Test Subjects       : " + str(test_size))
 
+        rs = np.random.RandomState(seed=1701)
+
         train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset,
-                                                                                 [train_size, val_size, test_size])
+                                                                                 [train_size, val_size, test_size],
+                                                                                 random_state=rs)
 
         # Training and Validation Section
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
