@@ -22,13 +22,14 @@ from Code.Utils.CSVGenerator import checkCSV_Student
 
 class M1_Pipeline:
     def __init__(self, dataset_path, M1_model_path, M1_bw_path, device="cuda", log_path="runs/Training/",
-                 isChaos=False, isUnified=False, epochs=3000):
+                 isChaos=False, isUnified=False, epochs=3000, seed_val=42):
         # Model Weights
         self.M1_model_path = M1_model_path
         self.M1_bw_path = M1_bw_path
 
-        self.train_split = 0.8
-        self.test_split = 0.15
+        self.train_size = 5
+        self.val_size = 1
+        self.test_size = 2
         self.batch_size = 1
         self.lr = 1e-4
 
@@ -46,6 +47,8 @@ class M1_Pipeline:
 
         self.isChaos = isChaos
         self.isUnified = isUnified
+
+        self.seed = seed_val
 
     @staticmethod
     def defineOptimizer_unified(modelM0, modelM1):
@@ -89,30 +92,34 @@ class M1_Pipeline:
             logging.info("########################### START Unified M1 + M0 Model Training ###########################")
         else:
             logging.info("########################### START M1 Model Training ###########################")
+        logging.info("Using Seed value : "+str(self.seed))
         # Check dataset csv file
         checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
         dataset = CustomDataset(self.dataset_path, self.csv_file, self.transform_val,
                                 self.isChaos, self.ct_level, self.ct_window)
 
-        # Train-Test Split
-        train_size = int(self.train_split * len(dataset))
-        test_size = int(self.test_split * len(dataset))
-        val_size = len(dataset) - train_size - test_size
-
-        logging.info("Train Subjects      : " + str(train_size))
-        logging.info("Validation Subjects : " + str(val_size))
-        logging.info("Test Subjects       : " + str(test_size))
-
-        rs = np.random.RandomState(seed=1701)
+        logging.info("Train Subjects      : " + str(self.train_size))
+        logging.info("Validation Subjects : " + str(self.val_size))
+        logging.info("Test Subjects       : " + str(self.test_size))
 
         train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset,
-                                                                                 [train_size, val_size, test_size],
-                                                                                 random_state=rs)
+                                                                                 [self.train_size, self.val_size, self.test_size],
+                                                                                 generator=torch.Generator().manual_seed(self.seed))
+        logging.info("Train Indices  : " + str(train_dataset.indices))
+        logging.info("Val   Indices  : " + str(val_dataset.indices))
+        logging.info("Test  Indices  : " + str(test_dataset.indices))
+
+        print("Train Indices  : " + str(train_dataset.indices))
+        print("Val   Indices  : " + str(val_dataset.indices))
+        print("Test  Indices  : " + str(test_dataset.indices))
 
         # Training and Validation Section
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
-        validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=True)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size,
+                                                   shuffle=True,generator=torch.Generator().manual_seed(self.seed))
+        validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size,
+                                                        shuffle=True,generator=torch.Generator().manual_seed(self.seed))
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size,
+                                                  shuffle=True,generator=torch.Generator().manual_seed(self.seed))
 
         return train_loader, validation_loader, test_loader
 

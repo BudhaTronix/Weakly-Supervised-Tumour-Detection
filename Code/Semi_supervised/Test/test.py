@@ -72,11 +72,9 @@ def test(dataloaders, modelM0, modelM1, log=False, logPath=""):
     running_loss_0 = 0
     running_loss_1 = 0
     running_corrects = 0
-    ids = []
     for batch in dataloaders:
         # Get Data
-        mri_batch, labels_batch, ct_batch, ct_gt_batch, id = batch
-        ids.append(id.item())
+        mri_batch, labels_batch, ct_batch, ct_gt_batch = batch
 
         with autocast(enabled=False):
             loss_1, fully_warped_image_yx, pseudo_lbl = modelM1.lossCal(ct_batch, mri_batch, labels_batch)
@@ -129,11 +127,9 @@ def test(dataloaders, modelM0, modelM1, log=False, logPath=""):
     print("Overall Accuracy : ", running_corrects / len(dataloaders))
     time_elapsed = time.time() - since
     print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    print("IDs used in testing : ", ids)
 
     logging.debug("Overall loss 0   : " + str(running_loss_0 / len(dataloaders)))
     logging.debug("Overall loss 1   : " + str(running_loss_1 / len(dataloaders)))
     logging.debug("Overall Accuracy : " + str(running_corrects / len(dataloaders)))
     logging.debug('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    logging.debug("IDs used in testing : " + str(ids))
     logging.info("############################# END Model Testing #############################")

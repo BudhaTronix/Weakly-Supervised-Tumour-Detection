@@ -18,7 +18,8 @@ except ImportError:
 
 
 class M0_Pipeline:
-    def __init__(self, dataset_path, M0_model_path, M0_bw_path, device="cuda", log_path="runs/Training/", epochs=100):
+    def __init__(self, dataset_path, M0_model_path, M0_bw_path, device="cuda",
+                 log_path="runs/Training/", epochs=100, seed_val=42):
         self.batch_size = 1
 
         # Model Weights
@@ -31,6 +32,7 @@ class M0_Pipeline:
         self.transform_val = (32, 256, 256)
         self.num_epochs = epochs
         self.device = device
+        self.seed = seed_val
 
     @staticmethod
     def defineModel():
@@ -67,11 +69,17 @@ class M0_Pipeline:
         train_size = int(0.8 * len(dataset))
         val_size = len(dataset) - train_size
 
-        train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
+        train_dataset, val_dataset = torch.utils.data.random_split(dataset,
+                                                                   [train_size, val_size],
+                                                                   generator=torch.Generator().manual_seed(self.seed))
+        print("Train Indices  : " + str(train_dataset.indices))
+        print("Val   Indices  : " + str(val_dataset.indices))
 
         # Training and Validation Section
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
-        validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True,
+                                                   generator=torch.Generator().manual_seed(self.seed))
+        validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True,
+                                                        generator=torch.Generator().manual_seed(self.seed))
 
         dataloaders = [train_loader, validation_loader]
         train(dataloaders, self.M0_model_path, self.M0_bw_path, self.num_epochs, model, optimizer, self.device,

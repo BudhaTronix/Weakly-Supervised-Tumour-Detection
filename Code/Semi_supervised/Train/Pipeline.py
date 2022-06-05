@@ -74,7 +74,7 @@ class Pipeline:
 
     def trainModel_M1(self, model_M0, epochs, logger, M0_model_path=None, M0_bw_path=None):
         obj_M1 = M1_Pipeline(self.dataset_path, self.M1_model_path, self.M1_bw_path, self.device, self.logPath,
-                             self.isChaos, self.isUnified, epochs)
+                             self.isChaos, self.isUnified, epochs, self.seed_value)
         train_loader, validation_loader, test_loader = obj_M1.train_val_test_slit()
         dataloaders = [train_loader, validation_loader]
         log_path = obj_M1.trainModel(model_M0, dataloaders, logger, M0_model_path, M0_bw_path)

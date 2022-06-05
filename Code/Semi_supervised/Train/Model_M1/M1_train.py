@@ -90,8 +90,6 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
     best_val_loss_1 = 99999
     since = time.time()
     criterion = DiceLoss()
-    ids_train = []
-    ids_val = []
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
         print('-' * 10)
@@ -112,15 +110,9 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
 
                 # Get Data
                 if isChaos:
-                    mri_batch, labels_batch, ct_batch, ct_gt_batch, id = batch
+                    mri_batch, labels_batch, ct_batch, ct_gt_batch = batch
                 else:
-                    mri_batch, labels_batch, ct_batch, id = batch
-
-                if epoch == 0:
-                    if phase == 0:
-                        ids_train.append(id.item())
-                    else:
-                        ids_val.append(id.item())
+                    mri_batch, labels_batch, ct_batch = batch
 
                 optimizer.zero_grad()
 
@@ -231,8 +223,5 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
     saveModel(modelM1, M1_model_path)
     if isUnifiedTraining:
         torch.save(modelM0.state_dict(), M0_model_path)
-
-    logging.info("IDs used in training   : " + str(ids_train))
-    logging.info("IDs used in validation : " + str(ids_val))
 
     logging.info("############################# END M1 Model Training #############################")

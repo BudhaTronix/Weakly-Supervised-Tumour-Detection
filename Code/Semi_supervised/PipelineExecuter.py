@@ -4,6 +4,7 @@ import torch
 import random
 import numpy
 import logging
+import argparse
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.getcwd()))
 sys.path.insert(1, ROOT_DIR + "/")
@@ -20,6 +21,9 @@ log_path = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/Logs/"
 chaos_dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
 clinical_dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
 
+SEED = 42
+M0_EPOCHS = 250
+M1_EPOCHS = 2500
 
 ##################################################
 def chaos_unified():
@@ -28,10 +32,11 @@ def chaos_unified():
         Train Chaos - Unified training
         Test Chaos
     """
-    obj = Pipeline(chaos_dataset_path, modelWeights_path, log_path, "chaos", isUnified=True, device="cuda:1")
-    obj.trainModel_M0(epochs=200, logger=True)
+    obj = Pipeline(chaos_dataset_path, modelWeights_path, log_path, "chaos", isUnified=True,
+                   device="cuda:1", seed_value=SEED)
+    obj.trainModel_M0(epochs=M0_EPOCHS, logger=True)
     modelM0 = obj.getModelM0()
-    obj.trainModel_M1(modelM0, epochs=5000, logger=True, M0_model_path=obj.M0_model_path, M0_bw_path=obj.M0_bw_path)
+    obj.trainModel_M1(modelM0, epochs=M1_EPOCHS, logger=True, M0_model_path=obj.M0_model_path, M0_bw_path=obj.M0_bw_path)
     logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
 
@@ -41,10 +46,11 @@ def chaos_frozen():
         Train Chaos - Freeze M0 training
         Test Chaos
     """
-    obj = Pipeline(chaos_dataset_path, modelWeights_path, log_path, "chaos", isUnified=False, device="cuda:2")
-    obj.trainModel_M0(epochs=500, logger=True)
+    obj = Pipeline(chaos_dataset_path, modelWeights_path, log_path, "chaos", isUnified=False,
+                   device="cuda:2", seed_value=SEED)
+    obj.trainModel_M0(epochs=M0_EPOCHS, logger=True)
     modelM0 = obj.getModelM0()
-    obj.trainModel_M1(modelM0, epochs=5000, logger=True)
+    obj.trainModel_M1(modelM0, epochs=M1_EPOCHS, logger=True)
     logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
 
@@ -55,10 +61,11 @@ def clinical_unified():
         Train Clinical - Unified training
         Test Clinical
     """
-    obj = Pipeline(clinical_dataset_path, modelWeights_path, log_path, "clinical", isUnified=True, device="cuda:3")
-    obj.trainModel_M0(epochs=200, logger=True)
+    obj = Pipeline(clinical_dataset_path, modelWeights_path, log_path, "clinical", isUnified=True,
+                   device="cuda:3", seed_value=SEED)
+    obj.trainModel_M0(epochs=M0_EPOCHS, logger=True)
     modelM0 = obj.getModelM0()
-    obj.trainModel_M1(modelM0, epochs=5000, logger=True, M0_model_path=obj.M0_model_path, M0_bw_path=obj.M0_bw_path)
+    obj.trainModel_M1(modelM0, epochs=M1_EPOCHS, logger=True, M0_model_path=obj.M0_model_path, M0_bw_path=obj.M0_bw_path)
     logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
 
@@ -68,10 +75,11 @@ def clinical_frozen():
         Train Clinical - Freeze M0 training
         Test Clinical
     """
-    obj = Pipeline(clinical_dataset_path, modelWeights_path, log_path, "clinical", isUnified=False, device="cuda:7")
-    obj.trainModel_M0(epochs=500, logger=True)
+    obj = Pipeline(clinical_dataset_path, modelWeights_path, log_path, "clinical", isUnified=False,
+                   device="cuda:7", seed_value=SEED)
+    obj.trainModel_M0(epochs=M0_EPOCHS, logger=True)
     modelM0 = obj.getModelM0()
-    obj.trainModel_M1(modelM0, epochs=5000, logger=True)
+    obj.trainModel_M1(modelM0, epochs=M1_EPOCHS, logger=True)
     logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
 

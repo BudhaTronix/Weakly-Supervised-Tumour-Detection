@@ -29,6 +29,12 @@ class CustomDataset(Dataset):
         self.image_arr = np.asarray(self.data_info.iloc[:, 0])
         # Second column is the labels
         self.label_arr = np.asarray(self.data_info.iloc[:, 1])
+        # Third column is the X delta
+        self.x_delta = np.asarray(self.data_info.iloc[:, 2])
+        # Third column is the Y delta
+        self.y_delta = np.asarray(self.data_info.iloc[:, 3])
+        # Third column is the Z delta
+        self.z_delta = np.asarray(self.data_info.iloc[:, 4])
         # Calculate len
         self.data_len = len(self.data_info.index)
         # Check if Chaos of Clinical
@@ -40,7 +46,13 @@ class CustomDataset(Dataset):
     def __getitem__(self, index):
         # Open MRI image
         mri = tio.ScalarImage(self.dataset_path + "mri/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
-        mri_actualSize = self.normalize(mri)
+        mri = self.normalize(mri)
+        if self.chaos:
+            new_shape = (int(mri.shape[1] * self.z_delta[index]),
+                         int(mri.shape[2] * self.x_delta[index]),
+                         int(mri.shape[3] * self.y_delta[index]))
+            mri = f.interpolate(mri.unsqueeze(0), size=new_shape)
+        mri_actualSize = mri
 
         # Open CT image
         ct = tio.ScalarImage(self.dataset_path + "ct/" + self.image_arr[index])[tio.DATA].permute(0, 3, 1, 2)
@@ -53,35 +65,35 @@ class CustomDataset(Dataset):
                                        size=self.transform_val)  # optional, try without - Soumick
 
         # Transform MRI with the size of CT
-        mri_transformed = f.interpolate(mri_actualSize.unsqueeze(0), size=ct_transformed.shape[2:])
+        mri_transformed = f.interpolate(mri_actualSize, size=ct_transformed.shape[2:])
 
         # Open Labels image
-        mri_gt = tio.ScalarImage(self.dataset_path + "mri_gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1,
-                                                                                                          2)
+        mri_gt = tio.ScalarImage(self.dataset_path + "mri_gt/" + self.label_arr[index])[tio.DATA].permute(0, 3, 1, 2)
         if self.chaos:
             # Using the liver section in the MRI label
             np_frame = np.array(mri_gt)
             np_frame[(np_frame < 55) | (np_frame > 70)] = 0
             np_frame[(np_frame >= 55) & (np_frame <= 70)] = 1
             mri_gt = torch.Tensor(np_frame.astype(np.float))
+            mri_gt = f.interpolate(mri_gt.unsqueeze(0), size=new_shape)
 
             # Open CT Labels
             img_ct_lbl = tio.ScalarImage(self.dataset_path + "ct_gt/" + self.label_arr[index])[tio.DATA]
             gt_ct_actualSize = self.normalize(img_ct_lbl)
 
             # Transform MRI label with the size of CT
-            mri_gt_transformed = f.interpolate(mri_gt.unsqueeze(0), size=ct_transformed.shape[2:])
+            mri_gt_transformed = f.interpolate(mri_gt, size=ct_transformed.shape[2:])
 
             # Transform CT label with size mentioned
             ct_gt_transformed = f.interpolate(gt_ct_actualSize.unsqueeze(0), size=self.transform_val)
 
             return mri_transformed.squeeze(0), mri_gt_transformed.squeeze(0), ct_transformed.squeeze(
-                0), ct_gt_transformed.squeeze(0), index
+                0), ct_gt_transformed.squeeze(0)
         else:
             # Transform MRI label with the size of CT
             lbl_transformed = f.interpolate(mri_gt.unsqueeze(0), size=ct_transformed.shape[2:])
 
-            return mri_transformed.squeeze(0), lbl_transformed.squeeze(0), ct_transformed.squeeze(0), index
+            return mri_transformed.squeeze(0), lbl_transformed.squeeze(0), ct_transformed.squeeze(0)
 
     def __len__(self):
         return self.data_len

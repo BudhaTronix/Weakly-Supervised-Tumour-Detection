@@ -10,10 +10,12 @@ for directory in sorted(os.listdir(folder)):
     print("\nWorking on directory: ", directory)
     images = []
     for filename in sorted(os.listdir(os.path.join(folder, directory, 'Ground')), reverse=True):
-        print(filename)
+        # print(filename)
         img = Image.open(os.path.join(folder, directory, 'Ground', filename))
         data = np.array(img) * 1
         data = np.rot90(data, k=3)
+        data = np.flip(data, 1)
         images.append(data)
     path = fp + str(directory) + ".nii.gz"
+    print(path)
     nib.save(nib.Nifti2Image(np.array(images, dtype=np.int32), np.eye(4)), path)
