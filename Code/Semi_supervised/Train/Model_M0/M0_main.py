@@ -44,19 +44,17 @@ class M0_Pipeline:
         optimizer = optim.Adam(model.parameters(), lr=0.001)
         return optimizer
 
-    def displayDetails(self, logger):
+    def displayDetails(self):
         logging.info("############################# START M0 Model Training #############################")
         logging.info("Starting with Model M0 Training")
         logging.info("Logging Path     : " + self.logPath)
         logging.info("Model M0 Path    : " + self.M0_model_path)
         logging.info("Model M0 BW Path : " + self.M0_bw_path)
         logging.info("Device           : " + str(self.device))
-        logging.info("Logging Enabled  : " + str(logger))
         logging.info("Epochs total     : " + str(self.num_epochs))
 
-
-    def trainModel(self, logger):
-        self.displayDetails(logger)
+    def trainModel(self):
+        self.displayDetails()
 
         model = self.defineModel()
         optimizer = self.defineOptimizer(model)
@@ -72,8 +70,9 @@ class M0_Pipeline:
         train_dataset, val_dataset = torch.utils.data.random_split(dataset,
                                                                    [train_size, val_size],
                                                                    generator=torch.Generator().manual_seed(self.seed))
-        print("Train Indices  : " + str(train_dataset.indices))
-        print("Val   Indices  : " + str(val_dataset.indices))
+
+        logging.info("Train Indices  : {}".format(str(train_dataset.indices)))
+        logging.info("Val   Indices  : {}".format(str(val_dataset.indices)))
 
         # Training and Validation Section
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True,

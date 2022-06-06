@@ -1,8 +1,6 @@
 import os
 import sys
 import torch
-import logging
-from datetime import datetime
 
 os.environ['HTTP_PROXY'] = 'http://proxy:3128/'
 os.environ['HTTPS_PROXY'] = 'http://proxy:3128/'
@@ -21,7 +19,8 @@ from Code.Semi_supervised.Test.main import Test_Pipeline
 
 
 class Pipeline:
-    def __init__(self, dataset_path, modelWeights_path, log_path, dataset_type, isUnified, device, seed_value):
+    def __init__(self, dataset_path, modelWeights_path, log_path, dataset_type, M1_model_path=None, M1_bw_path=None,
+                 isM0Frozen=False, isM1Frozen=False, device="cuda", seed_value=42):
         self.dataset_type = dataset_type
 
         if self.dataset_type == "chaos":
@@ -30,57 +29,65 @@ class Pipeline:
             self.isChaos = False
             self.dataset_type = "clinical"
 
+        self.isM0Frozen = isM0Frozen
+        self.isM1Frozen = isM1Frozen
+
         # Model Weights
-        if isUnified:
+        if not self.isM0Frozen and not self.isM1Frozen:
             self.train_type = "Unified"
             self.temp_model_train_type = self.dataset_type + "_" + self.train_type
-        else:
-            self.train_type = "Frozen"
+        elif self.isM0Frozen:
+            self.train_type = "M0_Frozen"
             self.temp_model_train_type = self.dataset_type + "_" + self.train_type
+        elif self.isM1Frozen:
+            self.train_type = "M1_Frozen"
+            self.temp_model_train_type = self.dataset_type + "_" + self.train_type
+
         self.modelWeights_path = modelWeights_path
+
+        # Paths for pre training model M0
+        self.M0_model_base = self.modelWeights_path + "M0_" + ".pth"
+        self.M0_model_bw_base = self.modelWeights_path + "M0_bw_" + ".pth"
+
+        # Paths for main training model M0 + M1
         self.M0_model_path = self.modelWeights_path + "M0_" + self.temp_model_train_type + ".pth"
         self.M0_bw_path = self.modelWeights_path + "M0_bw_" + self.temp_model_train_type + ".pth"
 
-        self.M1_model_path = self.modelWeights_path + "M1_" + self.temp_model_train_type + ".pth"
-        self.M1_bw_path = self.modelWeights_path + "M1_bw_" + self.temp_model_train_type + ".pth"
+        if M1_model_path is None and M1_bw_path is None:
+            self.M1_model_path = self.modelWeights_path + "M1_" + self.temp_model_train_type + ".pth"
+            self.M1_bw_path = self.modelWeights_path + "M1_bw_" + self.temp_model_train_type + ".pth"
+        else:
+            self.M1_model_path = M1_model_path
+            self.M1_bw_path = M1_bw_path
 
         self.csv_file = "dataset.csv"
         self.dataset_path = dataset_path
         self.logPath = log_path + "runs/" + self.temp_model_train_type
 
         self.device = device
-
         self.seed_value = seed_value
 
-        self.isUnified = isUnified
-
-        self.log_date = datetime.now().strftime("%Y.%m.%d")
-        self.log_file_path = self.logPath + "_{}".format(self.log_date)+ "_log.txt"
-
-        logging.basicConfig(filename=self.log_file_path, filemode='w', level=logging.DEBUG)
-        logging.getLogger('matplotlib.font_manager').disabled = True
-
-    def getModelM0(self):
-        obj = M0_Pipeline(self.dataset_path, self.M0_model_path, self.M0_bw_path, self.logPath)
+    def getModelM0(self, model_weights_path):
+        obj = M0_Pipeline(self.dataset_path, self.M0_model_base, self.M0_model_bw_base, self.logPath)
         modelM0 = obj.defineModel()
-        modelM0.load_state_dict(torch.load(self.M0_model_path))
+        # Loading the best weights for Model M0
+        modelM0.load_state_dict(torch.load(model_weights_path))
         modelM0.to(self.device)
         return modelM0
 
-    def trainModel_M0(self, epochs, logger):
-        obj = M0_Pipeline(self.dataset_path, self.M0_model_path, self.M0_bw_path,self.device, self.logPath,
+    def trainModel_M0(self, epochs):
+        obj = M0_Pipeline(self.dataset_path, self.M0_model_base, self.M0_model_bw_base, self.device, self.logPath,
                           epochs=epochs)
-        obj.trainModel(logger)
+        obj.trainModel()
 
-    def trainModel_M1(self, model_M0, epochs, logger, M0_model_path=None, M0_bw_path=None):
+    def trainModel_M1(self, model_M0, epochs, logger, TestModel=False):
         obj_M1 = M1_Pipeline(self.dataset_path, self.M1_model_path, self.M1_bw_path, self.device, self.logPath,
-                             self.isChaos, self.isUnified, epochs, self.seed_value)
+                             self.isChaos, self.isM0Frozen, self.isM1Frozen, epochs, self.seed_value)
         train_loader, validation_loader, test_loader = obj_M1.train_val_test_slit()
         dataloaders = [train_loader, validation_loader]
-        log_path = obj_M1.trainModel(model_M0, dataloaders, logger, M0_model_path, M0_bw_path)
+        obj_M1.trainModel(model_M0, dataloaders, logger, self.M0_model_path, self.M0_bw_path)
 
-        if self.dataset_type == "chaos":
-            obj_Test = Test_Pipeline(self.M0_model_path,self.M0_bw_path,self.M1_model_path,self.M1_bw_path,
-                                     self.dataset_path,self.logPath,self.device)
-            obj_Test.testModel(test_loader, log_path)
-
+        if self.dataset_type == "chaos" and TestModel:
+            obj_Test = Test_Pipeline(self.M0_model_path, self.M0_bw_path, self.M1_model_path, self.M1_bw_path,
+                                     self.dataset_path, self.logPath, self.device)
+            obj_Test.testModel(test_loader)

@@ -12,6 +12,7 @@ from Code.Utils.loss import DiceLoss
 torch.set_num_threads(1)
 scaler = GradScaler()
 
+
 def saveImage(img, lbl, op):
     # create grid of images
     figure = plt.figure(figsize=(10, 10))
@@ -28,7 +29,7 @@ def saveImage(img, lbl, op):
     return figure
 
 
-def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer,device="cuda",
+def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer, device="cuda",
           log=False, logPath=""):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")

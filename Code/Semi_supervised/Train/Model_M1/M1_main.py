@@ -22,7 +22,7 @@ from Code.Utils.CSVGenerator import checkCSV_Student
 
 class M1_Pipeline:
     def __init__(self, dataset_path, M1_model_path, M1_bw_path, device="cuda", log_path="runs/Training/",
-                 isChaos=False, isUnified=False, epochs=3000, seed_val=42):
+                 isChaos=False, isM0Frozen=False, isM1Frozen=False, epochs=3000, seed_val=42):
         # Model Weights
         self.M1_model_path = M1_model_path
         self.M1_bw_path = M1_bw_path
@@ -46,7 +46,8 @@ class M1_Pipeline:
         self.device = device
 
         self.isChaos = isChaos
-        self.isUnified = isUnified
+        self.isM0Frozen = isM0Frozen
+        self.isM1Frozen = isM1Frozen
 
         self.seed = seed_val
 
@@ -78,7 +79,6 @@ class M1_Pipeline:
         return optimizer
 
     def displayDetails(self, logger):
-
         logging.info("Logging Path     : " + self.logPath)
         logging.info("Model M1 Path    : " + self.M1_model_path)
         logging.info("Model M1 BW Path : " + self.M1_bw_path)
@@ -88,10 +88,12 @@ class M1_Pipeline:
 
     def train_val_test_slit(self):
         logging.info("\n\n\n")
-        if self.isUnified:
-            logging.info("########################### START Unified M1 + M0 Model Training ###########################")
-        else:
-            logging.info("########################### START M1 Model Training ###########################")
+        if not self.isM0Frozen and not self.isM1Frozen:
+            logging.info("########################### M0 - Train | M1 - Train  ###########################")
+        elif self.isM0Frozen:
+            logging.info("########################### M0 - Frozen| M1 - Train  ###########################")
+        elif self.isM1Frozen:
+            logging.info("########################### M0 - Train | M1 - Frozen ###########################")
         logging.info("Using Seed value : "+str(self.seed))
         # Check dataset csv file
         checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
@@ -123,19 +125,23 @@ class M1_Pipeline:
 
         return train_loader, validation_loader, test_loader
 
-    def trainModel(self, modelM0, dataloaders, logging, M0_model_path=None, M0_bw_path=None):
-        self.displayDetails(logging)
+    def trainModel(self, modelM0, dataloaders, logger, M0_model_path=None, M0_bw_path=None):
+        self.displayDetails(logger)
         # Initialize Model M1
         modelM1 = Mscgunet(device=self.device)
 
         # Initialize Optimizer
-        if self.isUnified:
+        if not self.isM0Frozen and not self.isM1Frozen:
             optimizer = self.defineOptimizer_unified(modelM0, modelM1)
         else:
             optimizer = self.defineOptimizer(modelM1)
 
+        # if M1 is frozen - load best weights
+        if self.isM1Frozen:
+            modelM1.initializeModel(self.M1_bw_path)
+
         train(dataloaders, self.M1_model_path, self.M1_bw_path, self.num_epochs, modelM0, modelM1, optimizer,
-              self.isChaos, self.isUnified, self.device,
+              self.isChaos, self.isM0Frozen, self.isM1Frozen, self.device,
               log=logging,
               logPath=self.logPath,
               M0_model_path=M0_model_path,

@@ -1,11 +1,6 @@
-import os
-import sys
 import time
-import random
-import numpy
 import logging
 from datetime import datetime
-
 import matplotlib.pyplot as plt
 import torch
 
@@ -13,16 +8,9 @@ torch.set_num_threads(1)
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-
 from Code.Utils.loss import DiceLoss
 
 scaler = GradScaler()
-
-
-# torch.cuda.manual_seed(42)
-# torch.manual_seed(42)
-# numpy.random.seed(seed=42)
-# random.seed(42)
 
 
 def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt=None, isChaos=False):
@@ -60,6 +48,7 @@ def saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt=None, isCha
 
     return figure
 
+
 def saveModel(modelM1, path):
     torch.save({"feature_extractor_training": modelM1.feature_extractor_training.state_dict(),
                 "scg_training": modelM1.scg_training.state_dict(),
@@ -79,7 +68,7 @@ def saveModel(modelM1, path):
 
 
 def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, optimizer, isChaos,
-          isUnifiedTraining,GPU_ID, log=False, logPath="", M0_model_path=None, M0_bw_path=None):
+          isM0Frozen, isM1Frozen, GPU_ID, log=False, logPath="", M0_model_path=None, M0_bw_path=None):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = logPath + "{}".format(start_time)
@@ -95,19 +84,25 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
         print('-' * 10)
         # Each epoch has a training and validation phase
         for phase in [0, 1]:
-            if phase == 0 and isUnifiedTraining:
-                print("Model 0 In Training mode")
-                modelM0.train()  # Set model to evaluate mode
+            if phase == 0:
+                if isM0Frozen and isM1Frozen:
+                    modelM0.train()
+                    # modelM1.train()
+                if isM0Frozen and not isM1Frozen:
+                    modelM0.eval()
+                    # modelM1.train()
+                if isM1Frozen and not isM0Frozen:
+                    modelM0.train()
+                    # modelM1.eval()
             else:
-                print("Model 0 In Validation mode")
-                modelM0.eval()  # Set model to evaluate mode
+                modelM0.eval()
+                # modelM1.eval()
             running_loss_0 = 0.0
             running_loss_1 = 0.0
             running_corrects = 0
             # Iterate over data.
             idx = 0
             for batch in tqdm(dataloaders[phase]):
-
                 # Get Data
                 if isChaos:
                     mri_batch, labels_batch, ct_batch, ct_gt_batch = batch
@@ -123,10 +118,12 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                         output_ct = modelM0(fully_warped_image_yx.to(GPU_ID)).squeeze()
                         loss_0, _ = criterion(output_ct, pseudo_lbl.squeeze().to(GPU_ID))
 
-                        if isUnifiedTraining:
-                            total_loss = loss_0 + loss_1
-                        else:
+                        if isM0Frozen and isM1Frozen:
+                            total_loss = (loss_0 * 0.2) + (loss_1 * 0.8)
+                        if isM0Frozen and not isM1Frozen:
                             total_loss = loss_1
+                        if isM1Frozen and not isM0Frozen:
+                            total_loss = loss_0
 
                         if isChaos:
                             _, acc_gt = criterion(ct_gt_batch.squeeze().to(GPU_ID),
@@ -194,15 +191,16 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                     if isChaos:
                         writer.add_scalar("Validation/Acc_GT", epoch_acc_gt, epoch)
 
-            logging.info('Epoch: {} Mode: {} Loss_0: {:.4f} Loss_1: {:.4f}'.format(epoch, mode, epoch_loss_0, epoch_loss_1))
+            logging.info(
+                'Epoch: {} Mode: {} Loss_0: {:.4f} Loss_1: {:.4f}'.format(epoch, mode, epoch_loss_0, epoch_loss_1))
 
             # deep copy the model
             if phase == 1:
-                if epoch_loss_0 < best_val_loss_0 and isUnifiedTraining:
+                if epoch_loss_0 < best_val_loss_0 and not isM0Frozen:
                     logging.info("Saving the best model weights of Model 0")
                     best_val_loss_0 = epoch_loss_0
                     torch.save(modelM0.state_dict(), M0_bw_path)
-                if epoch_loss_1 < best_val_loss_1:
+                if epoch_loss_1 < best_val_loss_1 and not isM1Frozen:
                     logging.info("Saving the best model weights of Model 1")
                     best_val_loss_1 = epoch_loss_1
                     saveModel(modelM1, M1_bw_path)
@@ -210,9 +208,10 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
         if epoch % 10 == 0:
             logging.info("Saving the model")
             # save the models
-            saveModel(modelM1, M1_model_path)
-            if isUnifiedTraining:
+            if not isM0Frozen:
                 torch.save(modelM0.state_dict(), M0_model_path)
+            if not isM1Frozen:
+                saveModel(modelM1, M1_model_path)
 
     time_elapsed = time.time() - since
     logging.info('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
@@ -220,8 +219,9 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
 
     # save the model
     logging.info("Saving the models before exiting")
-    saveModel(modelM1, M1_model_path)
-    if isUnifiedTraining:
+    if not isM0Frozen:
         torch.save(modelM0.state_dict(), M0_model_path)
+    if not isM1Frozen:
+        saveModel(modelM1, M1_model_path)
 
-    logging.info("############################# END M1 Model Training #############################")
+    logging.info("############################## END Model Training ##############################")
