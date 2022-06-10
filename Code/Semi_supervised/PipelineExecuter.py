@@ -23,7 +23,7 @@ clinical_dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
 
 SEED = 42
 M0_EPOCHS = 250
-M1_EPOCHS = 2500
+M1_EPOCHS = 1200
 
 log_date = datetime.now().strftime("%Y.%m.%d")
 logging.getLogger('matplotlib.font_manager').disabled = True
@@ -57,6 +57,7 @@ def chaos_unified_M0_M1():
     """
     log_file_path = log_path + "Chaos_Unified_{}_{}".format(SEED, log_date) + "_log.txt"
     logging.basicConfig(filename=log_file_path, filemode='w', level=logging.DEBUG)
+
     # Pre train the M0 model
     M0_model_path, M0_model_path_bw = preTrainM0(train=True)
 
@@ -97,16 +98,18 @@ def chaos_frozen_M0_M1():
             - Train M0 model again while freezing M1 model
         Test Chaos
     """
+    CUDA = "cuda:6"
     # Logging
     log_file_path = log_path + "Chaos_M0_M1_Frozen_{}_{}".format(SEED, log_date) + "_log.txt"
     logging.basicConfig(filename=log_file_path, filemode='w', level=logging.DEBUG)
+    # logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
     # Part 1: Pre train the M0 model
-    M0_model_path, M0_model_path_bw = preTrainM0(train=True)
+    M0_model_path, M0_model_path_bw = preTrainM0(train=False)
 
     # Part 2: Train model M1 while M0 frozen [isM0Frozen=False, isM1Frozen=False]
     obj_0 = Pipeline(chaos_dataset_path, modelWeights_path, log_path, "chaos",
-                     isM0Frozen=True, isM1Frozen=False, device="cuda:1", seed_value=SEED)
+                     isM0Frozen=True, isM1Frozen=False, device=CUDA, seed_value=SEED)
     modelM0 = obj_0.getModelM0(M0_model_path_bw)
     obj_0.trainModel_M1(modelM0, epochs=M1_EPOCHS, logger=True)
 
@@ -114,7 +117,7 @@ def chaos_frozen_M0_M1():
     # Passing the M1 weight paths and Model M0 from previous object
     obj_1 = Pipeline(chaos_dataset_path, modelWeights_path, log_path, "chaos",
                      M1_model_path=obj_0.M1_model_path, M1_bw_path=obj_0.M1_bw_path,
-                     isM0Frozen=False, isM1Frozen=True, device="cuda:7", seed_value=SEED)
+                     isM0Frozen=False, isM1Frozen=True, device=CUDA, seed_value=SEED)
     obj_1.trainModel_M1(modelM0, epochs=M1_EPOCHS, logger=True, TestModel=True)
     logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 

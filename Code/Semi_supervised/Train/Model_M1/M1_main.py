@@ -66,7 +66,7 @@ class M1_Pipeline:
         return optimizer
 
     @staticmethod
-    def defineOptimizer(modelM1):
+    def defineOptimizer_M1(modelM1):
         optimizer = torch.optim.Adam(
             list(modelM1.feature_extractor_training.parameters()) + list(modelM1.scg_training.parameters()) +
             list(modelM1.upsampler1_training.parameters()) + list(modelM1.upsampler2_training.parameters()) +
@@ -76,6 +76,11 @@ class M1_Pipeline:
             list(modelM1.conv_decoder2_training.parameters()) + list(modelM1.conv_decoder3_training.parameters()) +
             list(modelM1.conv_decoder4_training.parameters()) + list(modelM1.conv_decoder5_training.parameters()) +
             list(modelM1.conv_decoder6_training.parameters()), lr=modelM1.lr)
+        return optimizer
+
+    @staticmethod
+    def defineOptimizer_M0(model):
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         return optimizer
 
     def displayDetails(self, logger):
@@ -132,9 +137,14 @@ class M1_Pipeline:
 
         # Initialize Optimizer
         if not self.isM0Frozen and not self.isM1Frozen:
+            # Optimizer for both M0 and M1
             optimizer = self.defineOptimizer_unified(modelM0, modelM1)
+        elif not self.isM0Frozen and self.isM1Frozen:
+            # Optimizer for both M0 only
+            optimizer = self.defineOptimizer_M0(modelM0)
         else:
-            optimizer = self.defineOptimizer(modelM1)
+            # Optimizer for both M1 only
+            optimizer = self.defineOptimizer_M1(modelM1)
 
         # if M1 is frozen - load best weights
         if self.isM1Frozen:
