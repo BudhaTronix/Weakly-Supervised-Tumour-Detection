@@ -8,7 +8,7 @@ torch.set_num_threads(1)
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from Code.Utils.loss import DiceLoss
+from Code.Utils.loss import DiceLoss, focal_tversky_loss
 
 scaler = GradScaler()
 
@@ -68,7 +68,8 @@ def saveModel(modelM1, path):
 
 
 def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, optimizer, isChaos,
-          isM0Frozen, isM1Frozen, GPU_ID, log=False, logPath="", M0_model_path=None, M0_bw_path=None):
+          isM0Frozen, isM1Frozen, GPU_ID, loss_fn="Dice", model_type="DeepSup", log=False, logPath="",
+          M0_model_path=None, M0_bw_path=None):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
         TBLOGDIR = logPath + "{}".format(start_time)
@@ -78,7 +79,11 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
     best_val_loss_0 = 99999
     best_val_loss_1 = 99999
     since = time.time()
-    criterion = DiceLoss()
+    if loss_fn == "TFL":
+        criterion = focal_tversky_loss
+    else:
+        criterion = DiceLoss()
+    getDice = DiceLoss()
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
         print('-' * 10)
@@ -114,20 +119,30 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=False):
                         loss_1, fully_warped_image_yx, pseudo_lbl = modelM1.lossCal(ct_batch, mri_batch, labels_batch)
+                        fully_warped_image_yx = (fully_warped_image_yx - fully_warped_image_yx.min()) / \
+                                                (fully_warped_image_yx.max() - fully_warped_image_yx.min())
 
-                        output_ct = modelM0(fully_warped_image_yx.to(GPU_ID)).squeeze()
-                        loss_0, _ = criterion(output_ct, pseudo_lbl.squeeze().to(GPU_ID))
+                        output_ct = modelM0(fully_warped_image_yx.to(GPU_ID))
 
-                        if isM0Frozen and isM1Frozen:
-                            total_loss = (loss_0 * 0.2) + (loss_1 * 0.8)
+                        if model_type == "DeepSup":
+                            loss_0 = (criterion(output_ct[0], pseudo_lbl[:, :, ::8, ::8, ::8])
+                                      + criterion(output_ct[1], pseudo_lbl[:, :, ::4, ::4, ::4])
+                                      + criterion(output_ct[2], pseudo_lbl[:, :, ::2, ::2, ::2])
+                                      + criterion(output_ct[3], pseudo_lbl)) / 4.
+                        else:
+                            loss_0 = criterion(output_ct.squeeze(), pseudo_lbl.squeeze().to(GPU_ID))
+
+                        if not isM0Frozen and not isM1Frozen:
+                            total_loss = loss_0 + loss_1  # (loss_0 * 0.2) + (loss_1 * 0.8)
                         if isM0Frozen and not isM1Frozen:
                             total_loss = loss_1
+                            loss_0 = loss_0.detach()
                         if isM1Frozen and not isM0Frozen:
                             total_loss = loss_0
+                            loss_1 = loss_1.detach()
 
                         if isChaos:
-                            _, acc_gt = criterion(ct_gt_batch.squeeze().to(GPU_ID),
-                                                  pseudo_lbl.squeeze().to(GPU_ID))
+                            acc_gt = 1 - getDice(ct_gt_batch.squeeze().to(GPU_ID), pseudo_lbl.squeeze().to(GPU_ID))
 
                     if phase == 0:
                         if autocast:
@@ -149,7 +164,10 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                         ct = ct_batch.squeeze()[slice, :, :].unsqueeze(0)
                         ctmri_merge = fully_warped_image_yx.squeeze()[slice, :, :].unsqueeze(
                             0).float().clone().detach().cpu()
-                        ct_op = output_ct[slice, :, :].unsqueeze(0).clone().detach().cpu().float()
+                        if model_type == "DeepSup":
+                            ct_op = output_ct[3].squeeze()[slice, :, :].unsqueeze(0).clone().detach().cpu().float()
+                        else:
+                            ct_op = output_ct.squeeze()[slice, :, :].unsqueeze(0).clone().detach().cpu().float()
                         mri_lbl = labels_batch.squeeze()[slice, :, :].unsqueeze(0).clone().detach().cpu()
                         pseudo_gt = pseudo_lbl.squeeze()[slice, :, :].unsqueeze(0).clone().detach().cpu()
 
@@ -169,7 +187,7 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                     running_loss_1 += loss_1.item()
 
                     if isChaos:
-                        running_corrects += acc_gt.item()
+                        running_corrects += acc_gt
                     idx += 1
 
             epoch_loss_0 = running_loss_0 / len(dataloaders[phase])

@@ -21,7 +21,7 @@ from Code.Utils.CSVGenerator import checkCSV_Student
 
 
 class M1_Pipeline:
-    def __init__(self, dataset_path, M1_model_path, M1_bw_path, device="cuda", log_path="runs/Training/",
+    def __init__(self, dataset_path, M1_model_path, M1_bw_path,loss_fn,model_type, device="cuda", log_path="runs/Training/",
                  isChaos=False, isM0Frozen=False, isM1Frozen=False, epochs=3000, seed_val=42):
         # Model Weights
         self.M1_model_path = M1_model_path
@@ -32,6 +32,9 @@ class M1_Pipeline:
         self.test_size = 2
         self.batch_size = 1
         self.lr = 1e-4
+
+        self.loss_fn = loss_fn
+        self.model_type = model_type
 
         self.csv_file = "dataset.csv"
         self.num_epochs = epochs
@@ -90,6 +93,8 @@ class M1_Pipeline:
         logging.info("Device           : " + self.device)
         logging.info("Logging Enabled  : " + str(logger))
         logging.info("Epochs total     : " + str(self.num_epochs))
+        logging.info("M0 Loss Function : " + str(self.loss_fn))
+        logging.info("M0 Model Type    : " + str(self.model_type))
 
     def train_val_test_slit(self):
         logging.info("\n\n\n")
@@ -151,7 +156,7 @@ class M1_Pipeline:
             modelM1.initializeModel(self.M1_bw_path)
 
         train(dataloaders, self.M1_model_path, self.M1_bw_path, self.num_epochs, modelM0, modelM1, optimizer,
-              self.isChaos, self.isM0Frozen, self.isM1Frozen, self.device,
+              self.isChaos, self.isM0Frozen, self.isM1Frozen, self.device, self.loss_fn, self.model_type,
               log=logging,
               logPath=self.logPath,
               M0_model_path=M0_model_path,

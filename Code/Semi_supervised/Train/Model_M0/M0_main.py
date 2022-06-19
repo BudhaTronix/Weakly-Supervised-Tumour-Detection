@@ -7,6 +7,7 @@ import torchio as tio
 from Code.Semi_supervised.Train.Model_M0.M0_dataloader import TeacherCustomDataset
 from Code.Semi_supervised.Train.Model_M0.M0_train import train
 from Model.M0 import U_Net_M0
+from Model.DeepSupAttUNet3D import DeepSupAttentionUnet
 
 torch.set_num_threads(1)
 
@@ -18,13 +19,15 @@ except ImportError:
 
 
 class M0_Pipeline:
-    def __init__(self, dataset_path, M0_model_path, M0_bw_path, device="cuda",
+    def __init__(self, dataset_path, M0_model_path, M0_bw_path, loss_fn, model_type, isChaos=False, device="cuda",
                  log_path="runs/Training/", epochs=100, seed_val=42):
         self.batch_size = 1
 
         # Model Weights
         self.M0_model_path = M0_model_path
         self.M0_bw_path = M0_bw_path
+        self.loss_fn = loss_fn
+        self.model_type = model_type
 
         self.dataset_path = dataset_path
         self.logPath = log_path + "_Model_M0/"
@@ -33,10 +36,13 @@ class M0_Pipeline:
         self.num_epochs = epochs
         self.device = device
         self.seed = seed_val
+        self.isChaos = isChaos
 
-    @staticmethod
-    def defineModel():
-        model = U_Net_M0()
+    def defineModel(self):
+        if self.model_type == "DeepSup":
+            model = DeepSupAttentionUnet(1, 1)
+        else:
+            model = U_Net_M0()
         return model
 
     @staticmethod
@@ -52,6 +58,8 @@ class M0_Pipeline:
         logging.info("Model M0 BW Path : " + self.M0_bw_path)
         logging.info("Device           : " + str(self.device))
         logging.info("Epochs total     : " + str(self.num_epochs))
+        logging.info("Loss Function    : " + self.loss_fn)
+        logging.info("Model Type       : " + self.model_type)
 
     def trainModel(self):
         self.displayDetails()
@@ -62,7 +70,7 @@ class M0_Pipeline:
         transform = tio.CropOrPad(self.transform_val)
 
         checkCSV(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=True)
-        dataset = TeacherCustomDataset(self.dataset_path, self.csv_file, transform)
+        dataset = TeacherCustomDataset(self.isChaos, self.dataset_path, self.csv_file, transform)
 
         train_size = int(0.8 * len(dataset))
         val_size = len(dataset) - train_size
@@ -82,4 +90,5 @@ class M0_Pipeline:
 
         dataloaders = [train_loader, validation_loader]
         train(dataloaders, self.M0_model_path, self.M0_bw_path, self.num_epochs, model, optimizer, self.device,
+              self.loss_fn, self.model_type,
               log=logging, logPath=self.logPath)

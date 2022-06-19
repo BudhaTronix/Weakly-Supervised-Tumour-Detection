@@ -8,7 +8,7 @@ from torch.utils.data.dataset import Dataset
 
 
 class TeacherCustomDataset(Dataset):
-    def __init__(self, dataset_path, csv_file, transform):
+    def __init__(self, isChaos, dataset_path, csv_file, transform):
         """
         Args:
             csv_file (string): csv file name
@@ -16,7 +16,7 @@ class TeacherCustomDataset(Dataset):
             transform: pytorch(torchIO) transforms for transforms and tensor conversion
         """
         # Check if chaos
-        self.isChaos = False
+        self.isChaos = isChaos
         # Dataset Path
         self.dataset_path = dataset_path
         # CSV Path

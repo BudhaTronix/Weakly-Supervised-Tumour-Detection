@@ -19,7 +19,7 @@ from Code.Semi_supervised.Test.main import Test_Pipeline
 
 
 class Pipeline:
-    def __init__(self, dataset_path, modelWeights_path, log_path, dataset_type, M1_model_path=None, M1_bw_path=None,
+    def __init__(self, dataset_path, modelWeights_path, log_path, dataset_type, loss_fn, model_type, M1_model_path=None, M1_bw_path=None,
                  isM0Frozen=False, isM1Frozen=False, device="cuda", seed_value=42):
         self.dataset_type = dataset_type
 
@@ -32,6 +32,9 @@ class Pipeline:
         self.isM0Frozen = isM0Frozen
         self.isM1Frozen = isM1Frozen
 
+        self.loss_fn = loss_fn
+        self.model_type = model_type
+
         # Model Weights
         if not self.isM0Frozen and not self.isM1Frozen:
             self.train_type = "Unified"
@@ -43,11 +46,13 @@ class Pipeline:
             self.train_type = "M1_Frozen"
             self.temp_model_train_type = self.dataset_type + "_" + self.train_type
 
+        self.temp_model_train_type = self.temp_model_train_type + "_" + self.loss_fn + "_" + self.model_type
+
         self.modelWeights_path = modelWeights_path
 
         # Paths for pre training model M0
-        self.M0_model_base = self.modelWeights_path + "M0_" + ".pth"
-        self.M0_model_bw_base = self.modelWeights_path + "M0_bw_" + ".pth"
+        self.M0_model_base = self.modelWeights_path + "M0_" + self.model_type + ".pth"
+        self.M0_model_bw_base = self.modelWeights_path + "M0_bw_" + self.model_type + ".pth"
 
         # Paths for main training model M0 + M1
         self.M0_model_path = self.modelWeights_path + "M0_" + self.temp_model_train_type + ".pth"
@@ -68,7 +73,7 @@ class Pipeline:
         self.seed_value = seed_value
 
     def getModelM0(self, model_weights_path):
-        obj = M0_Pipeline(self.dataset_path, self.M0_model_base, self.M0_model_bw_base, self.logPath)
+        obj = M0_Pipeline(self.dataset_path, self.M0_model_base, self.M0_model_bw_base, self.logPath, self.model_type)
         modelM0 = obj.defineModel()
         # Loading the best weights for Model M0
         modelM0.load_state_dict(torch.load(model_weights_path))
@@ -76,12 +81,14 @@ class Pipeline:
         return modelM0
 
     def trainModel_M0(self, epochs):
-        obj = M0_Pipeline(self.dataset_path, self.M0_model_base, self.M0_model_bw_base, self.device, self.logPath,
+        obj = M0_Pipeline(self.dataset_path, self.M0_model_base, self.M0_model_bw_base,self.loss_fn, self.model_type,
+                          self.isChaos, self.device, self.logPath,
                           epochs=epochs)
         obj.trainModel()
 
     def trainModel_M1(self, model_M0, epochs, logger, TestModel=False):
-        obj_M1 = M1_Pipeline(self.dataset_path, self.M1_model_path, self.M1_bw_path, self.device, self.logPath,
+        obj_M1 = M1_Pipeline(self.dataset_path, self.M1_model_path, self.M1_bw_path,self.loss_fn, self.model_type,
+                             self.device, self.logPath,
                              self.isChaos, self.isM0Frozen, self.isM1Frozen, epochs, self.seed_value)
         train_loader, validation_loader, test_loader = obj_M1.train_val_test_slit()
         dataloaders = [train_loader, validation_loader]
@@ -89,5 +96,5 @@ class Pipeline:
 
         if self.dataset_type == "chaos" and TestModel:
             obj_Test = Test_Pipeline(self.M0_model_path, self.M0_bw_path, self.M1_model_path, self.M1_bw_path,
-                                     self.dataset_path, self.logPath, self.device)
+                                     self.dataset_path, self.logPath, self.device,self.loss_fn,self.model_type)
             obj_Test.testModel(test_loader)

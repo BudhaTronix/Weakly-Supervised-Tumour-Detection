@@ -6,8 +6,9 @@ import torch
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import numpy as np
 
-from Code.Utils.loss import DiceLoss
+from Code.Utils.loss import DiceLoss, focal_tversky_loss
 
 torch.set_num_threads(1)
 scaler = GradScaler()
@@ -29,7 +30,8 @@ def saveImage(img, lbl, op):
     return figure
 
 
-def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer, device="cuda",
+def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optimizer, device="cuda", loss_fn="Dice",
+          model_type="DeepSup",
           log=False, logPath=""):
     if log:
         start_time = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
@@ -39,7 +41,11 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
     best_val_loss = 99999
     since = time.time()
     model.to(device)
-    criterion = DiceLoss()
+    if loss_fn == "TFL":
+        criterion = focal_tversky_loss
+    else:
+        criterion = DiceLoss()
+    getDice = DiceLoss()
     store_idx = int(len(dataloaders[0]) / 2)
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs))
@@ -64,8 +70,20 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                 # forward
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=True):
-                        outputs = model(image_batch.unsqueeze(1).to(device))
-                        loss, acc = criterion(outputs[0].squeeze(1), labels_batch.to(device))
+                        prediction = model(image_batch.unsqueeze(0).to(device))
+                        gt = labels_batch.unsqueeze(0).to(device)
+
+                        if model_type == "DeepSup":
+                            loss = (criterion(prediction[0], gt[:, :, ::8, ::8, ::8])
+                                    + criterion(prediction[1], gt[:, :, ::4, ::4, ::4])
+                                    + criterion(prediction[2], gt[:, :, ::2, ::2, ::2])
+                                    + criterion(prediction[3], gt)) / 4.
+
+                            # Get the Dice Score for checking the accuracy
+                            acc = 1 - getDice(prediction[3], gt)
+                        else:
+                            loss = criterion(prediction, gt)
+                            acc = 1 - getDice(prediction, gt)
 
                     # backward + optimize only if in training phase
                     if phase == 0:
@@ -83,7 +101,10 @@ def train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, optim
                             # print("Storing images", idx, epoch)
                             img = image_batch.squeeze()[slice, :, :].unsqueeze(0)
                             lbl = labels_batch.squeeze()[slice, :, :].unsqueeze(0)
-                            op = outputs.squeeze()[slice, :, :].unsqueeze(0).cpu().detach()
+                            if model_type == "DeepSup":
+                                op = prediction[3].squeeze()[slice, :, :].unsqueeze(0).cpu().detach()  # For DeepSup
+                            else:
+                                op = prediction.squeeze()[slice, :, :].unsqueeze(0).cpu().detach()  # For Unet
 
                             fig = saveImage(img, lbl, op)
                             text = "Epoch : " + str(epoch)
