@@ -23,7 +23,7 @@ def GenerateCSV(dataset_Path, csv_FileName):
         writer = csv.writer(f)
         dataset_Path = Path(dataset_Path)
         imgPath = Path(str(dataset_Path) + "/mri")
-        gtPath = Path(str(dataset_Path) + "/mri_gt")
+        gtPath = Path(str(dataset_Path) + "/ct_mri_reg_gt")
         for img_file_name in tqdm(sorted(imgPath.glob("*"))):
             for gt_file_name in sorted(gtPath.glob("*")):
                 if img_file_name.name == gt_file_name.name:
@@ -47,7 +47,7 @@ def GenerateCSV_Student(dataset_Path, csv_FileName):
         writer = csv.writer(f)
         dataset_Path = Path(dataset_Path)
         imgPath = Path(str(dataset_Path) + "/mri")
-        gtPath = Path(str(dataset_Path) + "/ct")
+        gtPath = Path(str(dataset_Path) + "/ct_mri_reg_gt")
         for img_file_name in tqdm(sorted(imgPath.glob("*"))):
             for gt_file_name in sorted(gtPath.glob("*")):
                 if img_file_name.name == gt_file_name.name:

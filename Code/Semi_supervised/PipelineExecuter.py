@@ -29,7 +29,7 @@ def preTrainM0(SEED, device="cuda", isChaos=True, train=False):
         obj = Pipeline(chaos_dataset_path, modelWeights_path, log_path, "chaos", device=device, seed_value=SEED,
                        loss_fn=Loss_fn, model_type=Model_name)
     else:
-        obj = Pipeline(clinical_dataset_path, modelWeights_path, log_path, "chaos", device=device, seed_value=SEED,
+        obj = Pipeline(clinical_dataset_path, modelWeights_path, log_path, "clinical", device=device, seed_value=SEED,
                        loss_fn=Loss_fn, model_type=Model_name)
     if train:
         obj.trainModel_M0(epochs=M0_EPOCHS)
@@ -44,12 +44,12 @@ def preTrainM0(SEED, device="cuda", isChaos=True, train=False):
 ##################################################
 def chaos_unified(cuda, seed):
     """
-        Step 1:
-            Pre train the M0 model
-        Step 2 :
-            Train Chaos - Unified training
-        Step 3 :
-            Test Chaos
+    Step 1:
+        Pre train the M0 model
+    Step 2 :
+        Train Chaos - Unified training
+    Step 3 :
+        Test Chaos
     """
     CUDA = "cuda:{}".format(cuda)
     log_file_path = log_path + "Chaos_{}_{}_Unified_{}_{}".format(Model_name, Loss_fn, seed, log_date) + "_log.txt"
@@ -84,7 +84,9 @@ def chaos_sequential(cuda, seed):
     logging.basicConfig(filename=log_file_path, filemode='w', level=logging.DEBUG)
 
     # Part 1: Pre train the M0 model
-    M0_model_path, M0_model_path_bw = preTrainM0(SEED=seed, device=CUDA, train=False)
+    M0_model_path, M0_model_path_bw = preTrainM0(SEED=seed, device=CUDA, train=True)
+
+    logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
     # Part 2: Train model M1 while M0 frozen [isM0Frozen=False, isM1Frozen=False]
     obj_0 = Pipeline(chaos_dataset_path, modelWeights_path, log_path, "chaos",
@@ -126,23 +128,36 @@ def clinical_unified(SEED):
     logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
 
-def clinical_sequential(SEED):
+def clinical_sequential(cuda, seed):
     """
-        Step 4 :
-        Train Clinical - Freeze M0 training
-        Test Clinical
+    Step 4 :
+    Train Clinical - Freeze M0 training
+    Test Clinical
     """
+    CUDA = "cuda:{}".format(cuda)
     # Logging
-    log_file_path = log_path + "Clinical_M0_Frozen_{}_{}".format(SEED, log_date) + "_log.txt"
+    log_file_path = log_path + "Clinical_{}_{}_Sequential_{}_{}".format(Model_name, Loss_fn, seed,
+                                                                        log_date) + "_log.txt"
     logging.basicConfig(filename=log_file_path, filemode='w', level=logging.DEBUG)
 
     # Pre train the M0 model
-    M0_model_path, M0_model_path_bw = preTrainM0(isChaos=False, train=True)
-    # Train the mode in combined mode : isM0Frozen=False, isM1Frozen=False
-    obj = Pipeline(chaos_dataset_path, modelWeights_path, log_path, "clinical",
-                   isM0Frozen=True, isM1Frozen=False, device="cuda:4", seed_value=SEED)
-    modelM0 = obj.getModelM0(M0_model_path_bw)
-    obj.trainModel_M1(modelM0, epochs=M1_EPOCHS, logger=True)
+    M0_model_path, M0_model_path_bw = preTrainM0(isChaos=False, SEED=seed, device=CUDA, train=True)
+
+    # Part 2: Train model M1 while M0 frozen [isM0Frozen=False, isM1Frozen=False]
+    obj_0 = Pipeline(clinical_dataset_path, modelWeights_path, log_path, "clinical",
+                     isM0Frozen=True, isM1Frozen=False, device=CUDA,
+                     seed_value=seed, loss_fn=Loss_fn, model_type=Model_name)
+    modelM0 = obj_0.getModelM0(M0_model_path_bw)
+    obj_0.trainModel_M1(modelM0, epochs=M1_EPOCHS, logger=True)
+
+    # Part 3: Train model M0 while M1 frozen [isM0Frozen=False, isM1Frozen=True]
+    # Passing the M1 weight paths and Model M0 from previous object
+    obj_1 = Pipeline(clinical_dataset_path, modelWeights_path, log_path, "clinical",
+                     M1_model_path=obj_0.M1_model_path, M1_bw_path=obj_0.M1_bw_path,
+                     isM0Frozen=False, isM1Frozen=True, device=CUDA,
+                     seed_value=seed, loss_fn=Loss_fn, model_type=Model_name)
+
+    obj_1.trainModel_M1(modelM0, epochs=M1_EPOCHS, logger=True, TestModel=True)
     logging.getLogger().removeHandler(logging.getLogger().handlers[0])
 
 
@@ -150,36 +165,48 @@ def clinical_sequential(SEED):
 def main():
     print('cmd entry:', sys.argv)
     if sys.argv[1] == "1":
-        print("Executing Chaos Unified - cuda:{} , seed-value:{}, Loss-Function:{}, Model:{}".format(sys.argv[2], sys.argv[3], Loss_fn, Model_name))
+        print("Executing Chaos Unified - cuda:{} , seed-value:{}, Loss-Function:{}, Model:{}".format(sys.argv[2],
+                                                                                                     sys.argv[3],
+                                                                                                     Loss_fn,
+                                                                                                     Model_name))
         chaos_unified(sys.argv[2], int(sys.argv[3]))
     elif sys.argv[1] == "2":
-        print("Executing Chaos Sequential - cuda:{} , seed-value:{}, Loss-Function:{}, Model:{}".format(sys.argv[2], sys.argv[3], Loss_fn, Model_name))
+        print("Executing Chaos Sequential - cuda:{} , seed-value:{}, Loss-Function:{}, Model:{}".format(sys.argv[2],
+                                                                                                        sys.argv[3],
+                                                                                                        Loss_fn,
+                                                                                                        Model_name))
         chaos_sequential(sys.argv[2], int(sys.argv[3]))
     elif sys.argv[1] == "3":
         print("Executing Clinical unified")
         # clinical_unified()
     elif sys.argv[1] == "4":
-        print("Executing Clinical M0 frozen")
-        # clinical_frozen()
+        print("Executing Clinical Sequential - cuda:{} , seed-value:{}, Loss-Function:{}, Model:{}".format(sys.argv[2],
+                                                                                                           sys.argv[3],
+                                                                                                           Loss_fn,
+                                                                                                           Model_name))
+        clinical_sequential(sys.argv[2], int(sys.argv[3]))
     else:
         print("Wrong Argument")
+
 
 ##################################################
 modelWeights_path = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/"
 log_path = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/Logs/runs/"
 chaos_dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
-clinical_dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
+clinical_dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/Clinical/"
 
-M0_EPOCHS = 250
-M1_EPOCHS = 1200
+M0_EPOCHS = 500
+M1_EPOCHS = 500
 
-Loss_fn = "TFL"
-# Loss_fn = "Dice"
-
+# Loss_fn = "TFL"
+Loss_fn = "Dice"
 # Model_name = "DeepSup"
 Model_name = "Unet"
 
-
 if __name__ == "__main__":
-    main()
+    # main()
+    preTrainM0(SEED=43,device="cuda:5",train=True,isChaos=False)
+    # clinical_sequential(cuda=4, seed=42)
     # PipelineExecutor.py --ExecutionType --CUDA --SEED
+    # PipelineExecutor.py 2 3 42
+    # PipelineExecutor.py 4 3 42

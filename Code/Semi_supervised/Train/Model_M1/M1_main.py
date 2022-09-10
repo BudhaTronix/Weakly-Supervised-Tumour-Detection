@@ -14,21 +14,28 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.ge
 sys.path.insert(1, ROOT_DIR + "/")
 sys.path.insert(0, ROOT_DIR + "/")
 
-from Code.Semi_supervised.Train.Model_M1.M1_dataloader import CustomDataset
+# from Code.Semi_supervised.Train.Model_M1.M1_dataloader import CustomDataset
+from Code.Semi_supervised.Train.Model_M1.M1_dataloader_clinical import CustomDataset
 from Code.Semi_supervised.Train.Model_M1.M1_train import train
 from Code.Semi_supervised.mscgunet.train import Mscgunet
 from Code.Utils.CSVGenerator import checkCSV_Student
 
 
 class M1_Pipeline:
-    def __init__(self, dataset_path, M1_model_path, M1_bw_path,loss_fn,model_type, device="cuda", log_path="runs/Training/",
+    def __init__(self, dataset_path, M1_model_path, M1_bw_path, loss_fn, model_type, device="cuda",
+                 log_path="runs/Training/",
                  isChaos=False, isM0Frozen=False, isM1Frozen=False, epochs=3000, seed_val=42):
         # Model Weights
         self.M1_model_path = M1_model_path
         self.M1_bw_path = M1_bw_path
 
-        self.train_size = 5
-        self.val_size = 1
+        if isChaos:
+            self.train_size = 5
+            self.val_size = 1
+
+        else:
+            self.train_size = 4
+            self.val_size = 1
         self.test_size = 2
         self.batch_size = 1
         self.lr = 1e-4
@@ -104,19 +111,21 @@ class M1_Pipeline:
             logging.info("########################### M0 - Frozen| M1 - Train  ###########################")
         elif self.isM1Frozen:
             logging.info("########################### M0 - Train | M1 - Frozen ###########################")
-        logging.info("Using Seed value : "+str(self.seed))
+        logging.info("Using Seed value : " + str(self.seed))
         # Check dataset csv file
         checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
         dataset = CustomDataset(self.dataset_path, self.csv_file, self.transform_val,
-                                self.isChaos, self.ct_level, self.ct_window)
+                                     self.isChaos, self.ct_level, self.ct_window)
 
         logging.info("Train Subjects      : " + str(self.train_size))
         logging.info("Validation Subjects : " + str(self.val_size))
         logging.info("Test Subjects       : " + str(self.test_size))
 
         train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset,
-                                                                                 [self.train_size, self.val_size, self.test_size],
-                                                                                 generator=torch.Generator().manual_seed(self.seed))
+                                                                                 [self.train_size, self.val_size,
+                                                                                  self.test_size],
+                                                                                 generator=torch.Generator().manual_seed(
+                                                                                     self.seed))
         logging.info("Train Indices  : " + str(train_dataset.indices))
         logging.info("Val   Indices  : " + str(val_dataset.indices))
         logging.info("Test  Indices  : " + str(test_dataset.indices))
@@ -127,11 +136,12 @@ class M1_Pipeline:
 
         # Training and Validation Section
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size,
-                                                   shuffle=True,generator=torch.Generator().manual_seed(self.seed))
+                                                   shuffle=True, generator=torch.Generator().manual_seed(self.seed))
         validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size,
-                                                        shuffle=True,generator=torch.Generator().manual_seed(self.seed))
+                                                        shuffle=True,
+                                                        generator=torch.Generator().manual_seed(self.seed))
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size,
-                                                  shuffle=True,generator=torch.Generator().manual_seed(self.seed))
+                                                  shuffle=True, generator=torch.Generator().manual_seed(self.seed))
 
         return train_loader, validation_loader, test_loader
 

@@ -64,7 +64,7 @@ class CustomDataset(Dataset):
 
             with open(self.temp_location + "ct_gt_transformed_{}.pickle".format(index), "rb") as input_file:
                 ct_gt = cPickle.load(input_file)
-            return mri, mri_gt, ct, ct_gt, index
+            return mri, mri_gt, ct, ct_gt
 
         else:
             # Open MRI image

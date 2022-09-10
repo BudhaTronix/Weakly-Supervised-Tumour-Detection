@@ -8,13 +8,13 @@ class SpatialTransformer(nn.Module):
     N-D Spatial Transformer
     """
 
-    def __init__(self, size, is_affine=False, theta = None, mode='bilinear', affine_image_size =  (2, 1, 128, 128, 128)):
+    def __init__(self, size, is_affine=False, theta=None, mode='bilinear', affine_image_size=(2, 1, 128, 128, 128)):
         super().__init__()
 
         self.mode = mode
         self.isaffine = is_affine
         self.theta = theta
-        self.affine_image_size =  affine_image_size
+        self.affine_image_size = affine_image_size
         # create sampling grid
         # registering the grid as a buffer cleanly moves it to the GPU, but it also
         # adds it to the state dict. this is annoying since everything in the state dict
@@ -23,42 +23,42 @@ class SpatialTransformer(nn.Module):
         # see: https://discuss.pytorch.org/t/how-to-register-buffer-without-polluting-state-dict
 
         if (self.isaffine):
-          grid = F.affine_grid(self.theta, self.affine_image_size, align_corners=False)
-          #grid = grid.permute(0, 4, 1, 2, 3)
-          self.register_buffer('grid', grid)
+            grid = F.affine_grid(self.theta, self.affine_image_size, align_corners=False)
+            # grid = grid.permute(0, 4, 1, 2, 3)
+            self.register_buffer('grid', grid)
         else:
-          vectors = [torch.arange(0, s) for s in size]
-          grids = torch.meshgrid(vectors)
-          grid = torch.stack(grids)
-          grid = torch.unsqueeze(grid, 0)
-          grid = grid.type(torch.FloatTensor)
-          self.register_buffer('grid', grid)
+            vectors = [torch.arange(0, s) for s in size]
+            grids = torch.meshgrid(vectors)
+            grid = torch.stack(grids)
+            grid = torch.unsqueeze(grid, 0)
+            grid = grid.type(torch.FloatTensor)
+            self.register_buffer('grid', grid)
 
     def forward(self, src, flow=None):
-      if (self.isaffine):
-        grid = F.affine_grid(self.theta, self.affine_image_size)
-        warped_image = F.grid_sample(src, grid)
-        #warped_image = warped_image.permute(0, 4, 1, 2, 3)
-        return warped_image
-      else:
-        # new locations
-        new_locs = self.grid + flow
-        shape = flow.shape[2:]
+        if (self.isaffine):
+            grid = F.affine_grid(self.theta, self.affine_image_size)
+            warped_image = F.grid_sample(src, grid)
+            # warped_image = warped_image.permute(0, 4, 1, 2, 3)
+            return warped_image
+        else:
+            # new locations
+            new_locs = self.grid + flow
+            shape = flow.shape[2:]
 
-        # need to normalize grid values to [-1, 1] for resampler
-        for i in range(len(shape)):
-            new_locs[:, i, ...] = 2 * (new_locs[:, i, ...] / (shape[i] - 1) - 0.5)
+            # need to normalize grid values to [-1, 1] for resampler
+            for i in range(len(shape)):
+                new_locs[:, i, ...] = 2 * (new_locs[:, i, ...] / (shape[i] - 1) - 0.5)
 
-        # move channels dim to last position
-        # also not sure why, but the channels need to be reversed
-        if len(shape) == 2:
-            new_locs = new_locs.permute(0, 2, 3, 1)
-            new_locs = new_locs[..., [1, 0]]
-        elif len(shape) == 3:
-            new_locs = new_locs.permute(0, 2, 3, 4, 1)
-            new_locs = new_locs[..., [2, 1, 0]]
+            # move channels dim to last position
+            # also not sure why, but the channels need to be reversed
+            if len(shape) == 2:
+                new_locs = new_locs.permute(0, 2, 3, 1)
+                new_locs = new_locs[..., [1, 0]]
+            elif len(shape) == 3:
+                new_locs = new_locs.permute(0, 2, 3, 4, 1)
+                new_locs = new_locs[..., [2, 1, 0]]
 
-        return F.grid_sample(src, new_locs, align_corners=True, mode=self.mode)
+            return F.grid_sample(src, new_locs, align_corners=True, mode=self.mode)
 
 
 class VecInt(nn.Module):

@@ -16,7 +16,7 @@ sys.path.insert(0, ROOT_DIR + "/")
 
 from Code.Semi_supervised.mscgunet.train import Mscgunet
 from Code.Semi_supervised.Train.Model_M1.M1_dataloader import CustomDataset
-from Code.Semi_supervised.Test.test import test
+from Code.Semi_supervised.Test.test import test, test_clinical
 from Code.Utils.CSVGenerator import checkCSV_Student
 from Model.M0 import U_Net_M0
 from Model.DeepSupAttUNet3D import DeepSupAttentionUnet
@@ -88,10 +88,11 @@ class Test_Pipeline:
             # Training and Validation Section
             test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=True)
 
-        test(test_loader, modelM0, modelM1, model_type=self.model_type, logPath=self.logPath, device=self.device)
+        # test(test_loader, modelM0, modelM1, model_type=self.model_type, logPath=self.logPath, device=self.device)
+        test_clinical(test_loader, modelM0, modelM1, device=self.device)
 
 
-m0 = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/M0_chaos_M1_Frozen_TFL_DeepSup.pth"
+"""m0 = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/M0_chaos_M1_Frozen_TFL_DeepSup.pth"
 m0_bw = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/M0_bw_chaos_M1_Frozen_TFL_DeepSup.pth"
 
 m1 = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/M1_chaos_M0_Frozen_TFL_DeepSup.pth"
@@ -108,4 +109,4 @@ loss_fn = "TFL"
 
 ob = Test_Pipeline(M0_model_path=m0, M0_bw_path=m0_bw, M1_model_path=m1, M1_bw_path=m1_bw, dataset_path=d,
                    logPath=l, device="cuda:4", model_type=model_type, loss_fn=loss_fn)
-ob.testModel()
+ob.testModel()"""

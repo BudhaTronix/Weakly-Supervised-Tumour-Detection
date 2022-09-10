@@ -6,16 +6,17 @@ import torchio as tio
 
 from Code.Semi_supervised.Train.Model_M0.M0_dataloader import TeacherCustomDataset
 from Code.Semi_supervised.Train.Model_M0.M0_train import train
+from Code.Semi_supervised.Train.Model_M0.M0_Test import test
 from Model.M0 import U_Net_M0
 from Model.DeepSupAttUNet3D import DeepSupAttentionUnet
 
 torch.set_num_threads(1)
 
 try:
-    from Code.Utils.CSVGenerator import checkCSV
+    from Code.Utils.CSVGenerator import checkCSV_Student
 except ImportError:
     sys.path.insert(1, '/project/mukhopad/tmp/LiverTumorSeg/Code/Utils/')
-    from CSVGenerator import checkCSV
+    from CSVGenerator import checkCSV_Student
 
 
 class M0_Pipeline:
@@ -31,12 +32,20 @@ class M0_Pipeline:
 
         self.dataset_path = dataset_path
         self.logPath = log_path + "_Model_M0/"
-        self.csv_file = "dataset_teacher.csv"
+        self.csv_file = "dataset.csv"
         self.transform_val = (32, 256, 256)
         self.num_epochs = epochs
         self.device = device
         self.seed = seed_val
         self.isChaos = isChaos
+
+        if isChaos:
+            self.train_size = 5
+            self.val_size = 1
+        else:
+            self.train_size = 4
+            self.val_size = 1
+        self.test_size = 2
 
     def defineModel(self):
         if self.model_type == "DeepSup":
@@ -69,26 +78,33 @@ class M0_Pipeline:
 
         transform = tio.CropOrPad(self.transform_val)
 
-        checkCSV(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=True)
-        dataset = TeacherCustomDataset(self.isChaos, self.dataset_path, self.csv_file, transform)
+        checkCSV_Student(dataset_Path=self.dataset_path, csv_FileName=self.csv_file, overwrite=False)
+        dataset = TeacherCustomDataset(self.isChaos, self.dataset_path, self.csv_file, transform, self.transform_val)
 
-        train_size = int(0.8 * len(dataset))
-        val_size = len(dataset) - train_size
-
-        train_dataset, val_dataset = torch.utils.data.random_split(dataset,
-                                                                   [train_size, val_size],
-                                                                   generator=torch.Generator().manual_seed(self.seed))
+        train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset,
+                                                                                 [self.train_size, self.val_size,
+                                                                                  self.test_size],
+                                                                                 generator=torch.Generator().manual_seed(
+                                                                                     self.seed))
 
         logging.info("Train Indices  : {}".format(str(train_dataset.indices)))
         logging.info("Val   Indices  : {}".format(str(val_dataset.indices)))
+        logging.info("Val   Indices  : {}".format(str(test_dataset.indices)))
 
         # Training and Validation Section
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True,
                                                    generator=torch.Generator().manual_seed(self.seed))
         validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=True,
                                                         generator=torch.Generator().manual_seed(self.seed))
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=True,
+                                                  generator=torch.Generator().manual_seed(self.seed))
 
         dataloaders = [train_loader, validation_loader]
         train(dataloaders, self.M0_model_path, self.M0_bw_path, self.num_epochs, model, optimizer, self.device,
               self.loss_fn, self.model_type,
               log=logging, logPath=self.logPath)
+
+        model.load_state_dict(torch.load(self.M0_bw_path))
+        logging.info("Loaded the model with best weights, path :{}".format(self.M0_bw_path))
+
+        test(test_loader, model, self.model_type, self.logPath, device=self.device)

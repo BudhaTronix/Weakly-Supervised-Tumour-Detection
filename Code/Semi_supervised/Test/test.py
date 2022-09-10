@@ -76,7 +76,7 @@ def test(dataloaders, modelM0, modelM1, model_type, log=False, logPath="", devic
     running_corrects = 0
     for batch in dataloaders:
         # Get Data
-        mri_batch, labels_batch, ct_batch, ct_gt_batch, id = batch
+        mri_batch, labels_batch, ct_batch, ct_gt_batch = batch
 
         with autocast(enabled=False):
             loss_1, fully_warped_image_yx, pseudo_lbl = modelM1.lossCal(ct_batch, mri_batch, labels_batch)
@@ -91,13 +91,14 @@ def test(dataloaders, modelM0, modelM1, model_type, log=False, logPath="", devic
                           + criterion(output_ct[3], pseudo_lbl)) / 4.
             else:
                 loss_0 = criterion(output_ct.squeeze(), pseudo_lbl.squeeze().to(GPU_ID_M0))
+
             # Dice Score
             acc_gt = 1 - getDice(ct_gt_batch.squeeze().to(GPU_ID_M0), pseudo_lbl.squeeze().to(GPU_ID_M0))
 
             # Jaccard Index
             j_value = jaccard(ct_gt_batch.squeeze(), pseudo_lbl.squeeze().cpu().type(torch.int))
 
-            print("File: ", id, "  Dice: ", acc_gt.item(), "  Jaccard: ", j_value.item(), "  Focal_Tr: ",
+            print("File: ", idx, "  Dice: ", acc_gt.item(), "  Jaccard: ", j_value.item(), "  Focal_Tr: ",
                   loss_0.item())
             logging.debug("File: " + str(idx) + "  Dice: " + str(acc_gt.item()) + "  Jaccard: " + str(
                 j_value.item()) + "  Focal_Tr: " + str(loss_0.item()))
@@ -147,3 +148,45 @@ def test(dataloaders, modelM0, modelM1, model_type, log=False, logPath="", devic
     logging.debug("Overall Accuracy : " + str(running_corrects / len(dataloaders)))
     logging.debug('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     logging.info("############################# END Model Testing #############################")
+
+
+def test_clinical(dataloaders, modelM0, modelM1, device):
+    GPU_ID_M0 = device
+    modelM0.to(device)
+    getDice = DiceLoss()
+    jaccard = JaccardIndex(num_classes=2)
+    criterion = focal_tversky_loss
+    idx = 0
+    model_type = "Unet"
+    for batch in dataloaders:
+        # Get Data
+        mri_batch, labels_batch, ct_batch, ct_gt_batch = batch
+
+        with autocast(enabled=False):
+            loss_1, fully_warped_image_yx, pseudo_lbl = modelM1.lossCal(ct_batch, mri_batch, labels_batch)
+            fully_warped_image_yx = (fully_warped_image_yx - fully_warped_image_yx.min()) / \
+                                    (fully_warped_image_yx.max() - fully_warped_image_yx.min())
+
+            output_ct = modelM0(fully_warped_image_yx.to(GPU_ID_M0))
+            if model_type == "DeepSup":
+                loss_0 = (criterion(output_ct[0], pseudo_lbl[:, :, ::8, ::8, ::8])
+                          + criterion(output_ct[1], pseudo_lbl[:, :, ::4, ::4, ::4])
+                          + criterion(output_ct[2], pseudo_lbl[:, :, ::2, ::2, ::2])
+                          + criterion(output_ct[3], pseudo_lbl)) / 4.
+                output_ct = output_ct[3]
+            else:
+                loss_0 = criterion(output_ct.squeeze(), pseudo_lbl.squeeze().to(GPU_ID_M0))
+            # Dice Score
+            acc_gt = 1 - getDice(ct_gt_batch.squeeze().to(GPU_ID_M0), pseudo_lbl.squeeze().to(GPU_ID_M0))
+            # Jaccard Index
+            j_value = jaccard(ct_gt_batch.squeeze(), pseudo_lbl.squeeze().cpu().type(torch.int))
+            print("File: ", idx, "  Dice: ", acc_gt.item(), "  Jaccard: ", j_value.item(), "  Focal_Tr: ",
+                  loss_0.item())
+
+            # Dice Score
+            acc_gt = 1 - getDice(output_ct.squeeze().to(GPU_ID_M0), pseudo_lbl.squeeze().to(GPU_ID_M0))
+            # Jaccard Index
+            j_value = jaccard(output_ct.squeeze().cpu(), pseudo_lbl.squeeze().cpu().type(torch.int))
+            print("File: ", idx, "  Dice: ", acc_gt.item(), "  Jaccard: ", j_value.item(), "  Focal_Tr: ",
+                  loss_0.item())
+            idx += 1

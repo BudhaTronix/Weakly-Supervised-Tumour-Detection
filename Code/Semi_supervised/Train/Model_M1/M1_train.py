@@ -112,12 +112,13 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                 if isChaos:
                     mri_batch, labels_batch, ct_batch, ct_gt_batch = batch
                 else:
-                    mri_batch, labels_batch, ct_batch = batch
+                    mri_batch, labels_batch, ct_batch, ct_gt_batch = batch
 
                 optimizer.zero_grad()
-
                 with torch.set_grad_enabled(phase == 0):
                     with autocast(enabled=False):
+                        if len(labels_batch.shape) < 5:
+                            labels_batch = labels_batch.unsqueeze(0)
                         loss_1, fully_warped_image_yx, pseudo_lbl = modelM1.lossCal(ct_batch, mri_batch, labels_batch)
                         fully_warped_image_yx = (fully_warped_image_yx - fully_warped_image_yx.min()) / \
                                                 (fully_warped_image_yx.max() - fully_warped_image_yx.min())
@@ -174,11 +175,11 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                         ctmri_merge = (ctmri_merge - ctmri_merge.min()) / (ctmri_merge.max() - ctmri_merge.min())
                         ct_op = (ct_op - ct_op.min()) / (ct_op.max() - ct_op.min())
 
-                        if isChaos:
-                            ct_gt = ct_gt_batch.squeeze()[slice, :, :].unsqueeze(0)
-                            fig = saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt, isChaos)
-                        else:
-                            fig = saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt)
+                        # if isChaos:
+                        ct_gt = ct_gt_batch.squeeze()[slice, :, :].unsqueeze(0)
+                        fig = saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt, ct_gt, isChaos=True)
+                        #else:
+                        #fig = saveImage(mri, mri_lbl, ct, ctmri_merge, ct_op, pseudo_gt)
                         text = "Images on - " + str(epoch) + " Phase : " + str(phase)
                         writer.add_figure(text, fig, epoch)
 
