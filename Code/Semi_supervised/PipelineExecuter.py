@@ -195,7 +195,7 @@ log_path = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/Logs/runs/"
 chaos_dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
 clinical_dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/Clinical/"
 
-M0_EPOCHS = 500
+M0_EPOCHS = 250
 M1_EPOCHS = 500
 
 # Loss_fn = "TFL"
@@ -205,8 +205,8 @@ Model_name = "Unet"
 
 if __name__ == "__main__":
     # main()
-    preTrainM0(SEED=43,device="cuda:5",train=True,isChaos=False)
-    # clinical_sequential(cuda=4, seed=42)
+    preTrainM0(SEED=50,device="cuda:5",train=True,isChaos=False)
+    # clinical_sequential(cuda=5, seed=42)
     # PipelineExecutor.py --ExecutionType --CUDA --SEED
     # PipelineExecutor.py 2 3 42
     # PipelineExecutor.py 4 3 42

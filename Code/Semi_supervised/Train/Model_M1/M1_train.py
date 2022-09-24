@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 
 torch.set_num_threads(1)
+from skimage.filters import threshold_otsu
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -161,6 +162,9 @@ def train(dataloaders, M1_model_path, M1_bw_path, num_epochs, modelM0, modelM1, 
                             if temp[i].max() == 1:
                                 slice = i
                                 break
+                        # Thresholding OTSU
+                        thresh = threshold_otsu(output_ct.cpu().detach().numpy())
+                        output_ct = torch.Tensor(output_ct.cpu().detach().numpy() > thresh).to(GPU_ID)
                         mri = mri_batch.squeeze()[slice, :, :].unsqueeze(0)
                         ct = ct_batch.squeeze()[slice, :, :].unsqueeze(0)
                         ctmri_merge = fully_warped_image_yx.squeeze()[slice, :, :].unsqueeze(

@@ -6,6 +6,7 @@ from torchmetrics import JaccardIndex
 import matplotlib.pyplot as plt
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
+from skimage.filters import threshold_otsu
 import torch
 import logging
 
@@ -176,17 +177,15 @@ def test_clinical(dataloaders, modelM0, modelM1, device):
                 output_ct = output_ct[3]
             else:
                 loss_0 = criterion(output_ct.squeeze(), pseudo_lbl.squeeze().to(GPU_ID_M0))
+            # Thresholding OTSU
+            thresh = threshold_otsu(output_ct.squeeze().cpu().detach().numpy())
+            binary = torch.Tensor(output_ct.cpu().squeeze().detach().numpy() > thresh)
+
             # Dice Score
-            acc_gt = 1 - getDice(ct_gt_batch.squeeze().to(GPU_ID_M0), pseudo_lbl.squeeze().to(GPU_ID_M0))
+            acc_gt = 1 - getDice(ct_gt_batch.squeeze(), binary)
             # Jaccard Index
-            j_value = jaccard(ct_gt_batch.squeeze(), pseudo_lbl.squeeze().cpu().type(torch.int))
+            j_value = jaccard(ct_gt_batch.squeeze(), binary.type(torch.int))
             print("File: ", idx, "  Dice: ", acc_gt.item(), "  Jaccard: ", j_value.item(), "  Focal_Tr: ",
                   loss_0.item())
 
-            # Dice Score
-            acc_gt = 1 - getDice(output_ct.squeeze().to(GPU_ID_M0), pseudo_lbl.squeeze().to(GPU_ID_M0))
-            # Jaccard Index
-            j_value = jaccard(output_ct.squeeze().cpu(), pseudo_lbl.squeeze().cpu().type(torch.int))
-            print("File: ", idx, "  Dice: ", acc_gt.item(), "  Jaccard: ", j_value.item(), "  Focal_Tr: ",
-                  loss_0.item())
             idx += 1
