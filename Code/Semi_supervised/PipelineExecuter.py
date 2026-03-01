@@ -164,13 +164,23 @@ def clinical_sequential(cuda, seed):
 ##################################################
 def main():
     print('cmd entry:', sys.argv)
+    if len(sys.argv) < 2:
+        print("Usage: PipelineExecuter.py <mode> [cuda_id] [seed]")
+        print("mode: 1=Chaos Unified, 2=Chaos Sequential, 3=Clinical Unified, 4=Clinical Sequential")
+        return
     if sys.argv[1] == "1":
+        if len(sys.argv) < 4:
+            print("Usage: PipelineExecuter.py 1 <cuda_id> <seed>")
+            return
         print("Executing Chaos Unified - cuda:{} , seed-value:{}, Loss-Function:{}, Model:{}".format(sys.argv[2],
                                                                                                      sys.argv[3],
                                                                                                      Loss_fn,
                                                                                                      Model_name))
         chaos_unified(sys.argv[2], int(sys.argv[3]))
     elif sys.argv[1] == "2":
+        if len(sys.argv) < 4:
+            print("Usage: PipelineExecuter.py 2 <cuda_id> <seed>")
+            return
         print("Executing Chaos Sequential - cuda:{} , seed-value:{}, Loss-Function:{}, Model:{}".format(sys.argv[2],
                                                                                                         sys.argv[3],
                                                                                                         Loss_fn,
@@ -180,6 +190,9 @@ def main():
         print("Executing Clinical unified")
         # clinical_unified()
     elif sys.argv[1] == "4":
+        if len(sys.argv) < 4:
+            print("Usage: PipelineExecuter.py 4 <cuda_id> <seed>")
+            return
         print("Executing Clinical Sequential - cuda:{} , seed-value:{}, Loss-Function:{}, Model:{}".format(sys.argv[2],
                                                                                                            sys.argv[3],
                                                                                                            Loss_fn,
@@ -190,10 +203,14 @@ def main():
 
 
 ##################################################
-modelWeights_path = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/"
-log_path = "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/Logs/runs/"
-chaos_dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/"
-clinical_dataset_path = "/project/mukhopad/tmp/LiverTumorSeg/Dataset/Clinical/"
+modelWeights_path = os.getenv("WSTD_MODEL_WEIGHTS_PATH",
+                              "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/model_weights/")
+log_path = os.getenv("WSTD_LOG_PATH",
+                     "/project/mukhopad/tmp/LiverTumorSeg/Code/Semi_supervised/Logs/runs/")
+chaos_dataset_path = os.getenv("WSTD_CHAOS_DATASET_PATH",
+                               "/project/mukhopad/tmp/LiverTumorSeg/Dataset/chaos_3D/")
+clinical_dataset_path = os.getenv("WSTD_CLINICAL_DATASET_PATH",
+                                  "/project/mukhopad/tmp/LiverTumorSeg/Dataset/Clinical/")
 
 M0_EPOCHS = 250
 M1_EPOCHS = 500
@@ -204,8 +221,10 @@ Loss_fn = "Dice"
 Model_name = "Unet"
 
 if __name__ == "__main__":
-    # main()
-    preTrainM0(SEED=50,device="cuda:5",train=True,isChaos=False)
+    if len(sys.argv) > 1:
+        main()
+    else:
+        preTrainM0(SEED=50, device="cuda:5", train=True, isChaos=False)
     # clinical_sequential(cuda=5, seed=42)
     # PipelineExecutor.py --ExecutionType --CUDA --SEED
     # PipelineExecutor.py 2 3 42

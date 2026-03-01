@@ -14,8 +14,12 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.ge
 sys.path.insert(1, ROOT_DIR + "/")
 sys.path.insert(0, ROOT_DIR + "/")
 
-# from Code.Semi_supervised.Train.Model_M1.M1_dataloader import CustomDataset
-from Code.Semi_supervised.Train.Model_M1.M1_dataloader_clinical import CustomDataset
+try:
+    # Preferred loader when present in downstream forks.
+    from Code.Semi_supervised.Train.Model_M1.M1_dataloader_clinical import CustomDataset
+except ImportError:
+    # Fallback to repository loader to keep this repo runnable as-is.
+    from Code.Semi_supervised.Train.Model_M1.M1_dataloader import CustomDataset
 from Code.Semi_supervised.Train.Model_M1.M1_train import train
 from Code.Semi_supervised.mscgunet.train import Mscgunet
 from Code.Utils.CSVGenerator import checkCSV_Student

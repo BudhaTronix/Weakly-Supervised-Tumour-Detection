@@ -49,7 +49,7 @@ def getTransform(m, s):
 def trainModel():
     model = defineModel()
     optimizer = defineOptimizer(model)
-    criterion = defineCriterion
+    criterion = defineCriterion()
     modelPath = "/project/mukhopad/tmp/LiverTumorSeg/Code/Supervised/model_weights/m1.pth"
     modelPath_bestweight = "/project/mukhopad/tmp/LiverTumorSeg/Code/Supervised/model_weights/m1_bw.pth"
     dataset_path = "/project/tawde/DL_Liver/NewDataforReg/Dataset/"
@@ -63,5 +63,5 @@ def trainModel():
 
     train(dataloaders, modelPath, modelPath_bestweight, num_epochs, model, criterion, optimizer)
 
-
-trainModel()
+if __name__ == "__main__":
+    trainModel()

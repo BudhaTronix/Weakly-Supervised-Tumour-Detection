@@ -1,1 +1,6 @@
-conda install -c conda-forge scikit-learn
+Use requirements.txt (runtime) and requirements-dev.txt (development/testing).
+
+Example:
+conda create -n ws_tumour python=3.10 pip -y
+conda activate ws_tumour
+pip install -r requirements.txt
